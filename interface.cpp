@@ -31,7 +31,6 @@ namespace Interface
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
-			MatrixXd lidar;
 			try {
 				RSManager RSX1(lp.lidar_work_model, 16);
 				RSManager RSX2(lp.lidar_work_model, 16);
@@ -85,16 +84,6 @@ namespace Interface
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				long long num = 0;
-				long long loc = 0;
-				for (pp = lidar_final.begin(); pp != lidar_final.end(); pp++)
-				{
-					num += (*pp).cols();
-					lidar.conservativeResize(6, num);
-					lidar.block(0, loc, 6, (*pp).cols()) = (*pp);
-					loc += (*pp).cols();
-				}
-				lidar_final.clear();
 				strcpy_s(theword, "lidar数据解析结束。\n");
 				settext(ob, theword);
 				setvalue(ob, 0);
@@ -107,14 +96,12 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -127,7 +114,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			for (int i = 0; i < total - 1; i++)
 			{
 				imufinal.conservativeResize(7, 2000 * (i + 1));
@@ -145,7 +132,7 @@ namespace Interface
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 			strcpy_s(theword, "开始时间匹配。\n");
 			settext(ob, theword);
-			time_match(imufinal, lidar, cp.x_offset, cp.y_offset, cp.z_offset);
+			time_match_m_l(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
 			strcpy_s(theword, "时间匹配完成。\n");
 			settext(ob, theword);
 			//以下生成点云文件
@@ -154,17 +141,17 @@ namespace Interface
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
-				writeLas_m(file, lidar);
+				writeLas_l(file, lidar_final);
 			}
 			else if (fout.points_file_type == 1)
 			{
 				string file = fout.points_file + ".pcd";
-				writePly_m(file, lidar);
+				writePly_l(file, lidar_final);
 			}
 			else if (fout.points_file_type == 2)
 			{
 				string file = fout.points_file + ".ply";
-				writePcd_m(file, lidar);
+				writePcd_l(file, lidar_final);
 			}
 			else
 			{
@@ -180,7 +167,6 @@ namespace Interface
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
-			MatrixXd lidar;
 			try {
 				RSManager RSX1(lp.lidar_work_model, 32);
 				RSManager RSX2(lp.lidar_work_model, 32);
@@ -234,16 +220,6 @@ namespace Interface
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				long long num = 0;
-				long long loc = 0;
-				for (pp = lidar_final.begin(); pp != lidar_final.end(); pp++)
-				{
-					num += (*pp).cols();
-					lidar.conservativeResize(6, num);
-					lidar.block(0, loc, 6, (*pp).cols()) = (*pp);
-					loc += (*pp).cols();
-				}
-				lidar_final.clear();
 				strcpy_s(theword, "lidar数据解析结束。\n");
 				settext(ob, theword);
 				setvalue(ob, 0);
@@ -256,14 +232,12 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -276,7 +250,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			for (int i = 0; i < total - 1; i++)
 			{
 				imufinal.conservativeResize(7, 2000 * (i + 1));
@@ -294,7 +268,7 @@ namespace Interface
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 			strcpy_s(theword, "开始时间匹配。\n");
 			settext(ob, theword);
-			time_match(imufinal, lidar, cp.x_offset, cp.y_offset, cp.z_offset);
+			time_match_m_l(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
 			strcpy_s(theword, "时间匹配完成。\n");
 			settext(ob, theword);
 			//以下生成点云文件
@@ -303,17 +277,17 @@ namespace Interface
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
-				writeLas_m(file, lidar);
+				writeLas_l(file, lidar_final);
 			}
 			else if (fout.points_file_type == 1)
 			{
 				string file = fout.points_file + ".pcd";
-				writePly_m(file, lidar);
+				writePly_l(file, lidar_final);
 			}
 			else if (fout.points_file_type == 2)
 			{
 				string file = fout.points_file + ".ply";
-				writePcd_m(file, lidar);
+				writePcd_l(file, lidar_final);
 			}
 			else
 			{
@@ -344,14 +318,12 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -364,7 +336,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			for (int i = 0; i < total - 1; i++)
 			{
 				imufinal.conservativeResize(7, 2000 * (i + 1));
@@ -382,7 +354,7 @@ namespace Interface
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 			strcpy_s(theword, "开始时间匹配。\n");
 			settext(ob, theword);
-			time_match(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
+			time_match_m_m(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
 			strcpy_s(theword, "时间匹配完成。\n");
 			settext(ob, theword);
 			//以下生成点云文件
@@ -428,7 +400,6 @@ namespace Interface
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
-			MatrixXd lidar;
 			try {
 				RSManager RSX1(lp.lidar_work_model, 16);
 				RSManager RSX2(lp.lidar_work_model, 16);
@@ -482,16 +453,6 @@ namespace Interface
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				long long num = 0;
-				long long loc = 0;
-				for (pp = lidar_final.begin(); pp != lidar_final.end(); pp++)
-				{
-					num += (*pp).cols();
-					lidar.conservativeResize(6, num);
-					lidar.block(0, loc, 6, (*pp).cols()) = (*pp);
-					loc += (*pp).cols();
-				}
-				lidar_final.clear();
 				strcpy_s(theword, "lidar数据解析结束。\n");
 				settext(ob, theword);
 				setvalue(ob, 0);
@@ -504,14 +465,12 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -524,7 +483,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			strcpy_s(theword, "imu数据插值结束。\n");
 			settext(ob, theword);
 
@@ -553,7 +512,7 @@ namespace Interface
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 			strcpy_s(theword, "开始时间匹配。\n");
 			settext(ob, theword);
-			time_match(imufinal, lidar, cp.x_offset, cp.y_offset, cp.z_offset);
+			time_match_m_l(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
 			strcpy_s(theword, "时间匹配完成。\n");
 			settext(ob, theword);
 			//以下生成点云文件
@@ -562,17 +521,17 @@ namespace Interface
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
-				writeLas_m(file, lidar);
+				writeLas_l(file, lidar_final);
 			}
 			else if (fout.points_file_type == 1)
 			{
 				string file = fout.points_file + ".pcd";
-				writePly_m(file, lidar);
+				writePly_l(file, lidar_final);
 			}
 			else if (fout.points_file_type == 2)
 			{
 				string file = fout.points_file + ".ply";
-				writePcd_m(file, lidar);
+				writePcd_l(file, lidar_final);
 			}
 			else
 			{
@@ -588,7 +547,6 @@ namespace Interface
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
-			MatrixXd lidar;
 			try {
 				RSManager RSX1(lp.lidar_work_model, 32);
 				RSManager RSX2(lp.lidar_work_model, 32);
@@ -642,16 +600,6 @@ namespace Interface
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				long long num = 0;
-				long long loc = 0;
-				for (pp = lidar_final.begin(); pp != lidar_final.end(); pp++)
-				{
-					num += (*pp).cols();
-					lidar.conservativeResize(6, num);
-					lidar.block(0, loc, 6, (*pp).cols()) = (*pp);
-					loc += (*pp).cols();
-				}
-				lidar_final.clear();
 				strcpy_s(theword, "lidar数据解析结束。\n");
 				settext(ob, theword);
 				setvalue(ob, 0);
@@ -664,14 +612,12 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -684,7 +630,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			strcpy_s(theword, "imu数据插值结束。\n");
 			settext(ob, theword);
 
@@ -713,7 +659,7 @@ namespace Interface
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 			strcpy_s(theword, "开始时间匹配。\n");
 			settext(ob, theword);
-			time_match(imufinal, lidar, cp.x_offset, cp.y_offset, cp.z_offset);
+			time_match_m_l(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
 			strcpy_s(theword, "时间匹配完成。\n");
 			settext(ob, theword);
 			//以下生成点云文件
@@ -722,17 +668,17 @@ namespace Interface
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
-				writeLas_m(file, lidar);
+				writeLas_l(file, lidar_final);
 			}
 			else if (fout.points_file_type == 1)
 			{
 				string file = fout.points_file + ".pcd";
-				writePly_m(file, lidar);
+				writePly_l(file, lidar_final);
 			}
 			else if (fout.points_file_type == 2)
 			{
 				string file = fout.points_file + ".ply";
-				writePcd_m(file, lidar);
+				writePcd_l(file, lidar_final);
 			}
 			else
 			{
@@ -763,14 +709,12 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -783,7 +727,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			strcpy_s(theword, "imu数据插值结束。\n");
 			settext(ob, theword);
 
@@ -812,7 +756,7 @@ namespace Interface
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 			strcpy_s(theword, "开始时间匹配。\n");
 			settext(ob, theword);
-			time_match(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
+			time_match_m_m(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
 			strcpy_s(theword, "时间匹配完成。\n");
 			settext(ob, theword);
 			//以下生成点云文件
@@ -858,7 +802,6 @@ namespace Interface
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
-			MatrixXd lidar;
 			try {
 				RSManager RSX1(lp.lidar_work_model, 16);
 				RSManager RSX2(lp.lidar_work_model, 16);
@@ -912,16 +855,6 @@ namespace Interface
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				long long num = 0;
-				long long loc = 0;
-				for (pp = lidar_final.begin(); pp != lidar_final.end(); pp++)
-				{
-					num += (*pp).cols();
-					lidar.conservativeResize(6, num);
-					lidar.block(0, loc, 6, (*pp).cols()) = (*pp);
-					loc += (*pp).cols();
-				}
-				lidar_final.clear();
 				strcpy_s(theword, "lidar数据解析结束。\n");
 				settext(ob, theword);
 				setvalue(ob, 0);
@@ -934,13 +867,11 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -953,7 +884,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			strcpy_s(theword, "imu数据插值结束。\n");
 			settext(ob, theword);
 
@@ -971,11 +902,18 @@ namespace Interface
 
 			for (int i = 0; i < results.size(); i++)
 			{
+				list<Matrix<double, 6, Dynamic>> temp;
+				list<Matrix<double, 6, Dynamic>>::iterator ap;
+				for (ap = lidar_final.begin(); ap != lidar_final.end(); ap++)
+				{
+					temp.push_back(*ap);
+				}
+
 				//以下进行imu和lidar时间匹配
 				string sen = "对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
 				strcpy_s(theword, sen.data());
 				settext(ob, theword);
-				time_match(results[i], lidar, cp.x_offset, cp.y_offset, cp.z_offset);
+				time_match_m_l(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
 				strcpy_s(theword, "时间匹配完成。\n");
 				settext(ob, theword);
 				//以下生成点云文件
@@ -985,17 +923,17 @@ namespace Interface
 				if (fout.points_file_type == 0)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".las";
-					writeLas_m(file, lidar);
+					writeLas_l(file, temp);
 				}
 				else if (fout.points_file_type == 1)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".pcd";
-					writePly_m(file, lidar);
+					writePly_l(file, temp);
 				}
 				else if (fout.points_file_type == 2)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".ply";
-					writePcd_m(file, lidar);
+					writePcd_l(file, temp);
 				}
 				else
 				{
@@ -1005,6 +943,7 @@ namespace Interface
 				}
 				strcpy_s(theword, "点云文件生成完成。\n");
 				settext(ob, theword);
+				temp.clear();
 			}
 		}
 		else if (lp.lidar_type == 1)
@@ -1012,7 +951,6 @@ namespace Interface
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
-			MatrixXd lidar;
 			try {
 				RSManager RSX1(lp.lidar_work_model, 32);
 				RSManager RSX2(lp.lidar_work_model, 32);
@@ -1066,16 +1004,6 @@ namespace Interface
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				long long num = 0;
-				long long loc = 0;
-				for (pp = lidar_final.begin(); pp != lidar_final.end(); pp++)
-				{
-					num += (*pp).cols();
-					lidar.conservativeResize(6, num);
-					lidar.block(0, loc, 6, (*pp).cols()) = (*pp);
-					loc += (*pp).cols();
-				}
-				lidar_final.clear();
 				strcpy_s(theword, "lidar数据解析结束。\n");
 				settext(ob, theword);
 				setvalue(ob, 0);
@@ -1088,14 +1016,12 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -1108,7 +1034,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			strcpy_s(theword, "imu数据插值结束。\n");
 			settext(ob, theword);
 
@@ -1126,11 +1052,17 @@ namespace Interface
 
 			for (int i = 0; i < results.size(); i++)
 			{
+				list<Matrix<double, 6, Dynamic>> temp;
+				list<Matrix<double, 6, Dynamic>>::iterator ap;
+				for (ap = lidar_final.begin(); ap != lidar_final.end(); ap++)
+				{
+					temp.push_back(*ap);
+				}
 				//以下进行imu和lidar时间匹配
 				string sen = "对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
 				strcpy_s(theword, sen.data());
 				settext(ob, theword);
-				time_match(results[i], lidar, cp.x_offset, cp.y_offset, cp.z_offset);
+				time_match_m_l(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
 				strcpy_s(theword, "时间匹配完成。\n");
 				settext(ob, theword);
 				//以下生成点云文件
@@ -1140,17 +1072,17 @@ namespace Interface
 				if (fout.points_file_type == 0)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".las";
-					writeLas_m(file, lidar);
+					writeLas_l(file, temp);
 				}
 				else if (fout.points_file_type == 1)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".pcd";
-					writePly_m(file, lidar);
+					writePly_l(file, temp);
 				}
 				else if (fout.points_file_type == 2)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".ply";
-					writePcd_m(file, lidar);
+					writePcd_l(file, temp);
 				}
 				else
 				{
@@ -1160,6 +1092,7 @@ namespace Interface
 				}
 				strcpy_s(theword, "点云文件生成完成。\n");
 				settext(ob, theword);
+				temp.clear();
 			}
 		}
 		else if (lp.lidar_type == 2)
@@ -1182,14 +1115,12 @@ namespace Interface
 				return;
 			}
 			//以下进行imu数据处理
-			int total;
-			int rest;
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
 				strcpy_s(theword, "imu数据读取开始。\n");
 				settext(ob, theword);
-				imuresult = Read(fin.imu_data_file, total, rest);
+				imuresult = Read(fin.imu_data_file);
 				strcpy_s(theword, "imu数据读取结束。\n");
 				settext(ob, theword);
 			}
@@ -1202,7 +1133,7 @@ namespace Interface
 			}
 			strcpy_s(theword, "imu数据插值开始。\n");
 			settext(ob, theword);
-			imu_timenew(imuresult, total, rest);
+			imu_timenew(imuresult);
 			strcpy_s(theword, "imu数据插值结束。\n");
 			settext(ob, theword);
 
@@ -1220,11 +1151,14 @@ namespace Interface
 
 			for (int i = 0; i < results.size(); i++)
 			{
+				MatrixXd temp;
+				temp.resize(lidar_final.rows(), lidar_final.cols());
+				temp.block(0, 0, lidar_final.rows(), lidar_final.cols()) = lidar_final;
 				//以下进行imu和lidar时间匹配
 				string sen = "对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
 				strcpy_s(theword, sen.data());
 				settext(ob, theword);
-				time_match(results[i], lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
+				time_match_m_m(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
 				strcpy_s(theword, "时间匹配完成。\n");
 				settext(ob, theword);
 				//以下生成点云文件
@@ -1234,17 +1168,17 @@ namespace Interface
 				if (fout.points_file_type == 0)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".las";
-					writeLas_m(file, lidar_final);
+					writeLas_m(file, temp);
 				}
 				else if (fout.points_file_type == 1)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".pcd";
-					writePly_m(file, lidar_final);
+					writePly_m(file, temp);
 				}
 				else if (fout.points_file_type == 2)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".ply";
-					writePcd_m(file, lidar_final);
+					writePcd_m(file, temp);
 				}
 				else
 				{

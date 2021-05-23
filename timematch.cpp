@@ -143,8 +143,8 @@ namespace TIME
 		return results;
 	}
 
-	/*imu与lidar进行时间匹配*/
-	void time_match(MatrixXd& imu, MatrixXd& lidar, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z)
+	/*imu与lidar进行时间匹配 矩阵形式*/
+	void time_match_m_m(MatrixXd& imu, MatrixXd& lidar, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z)
 	{
 
 		long long int lidarcols = lidar.cols();
@@ -216,6 +216,84 @@ namespace TIME
 						lidar.block(0, 0, 6, problock.cols()) = problock;
 						lidar.block(0, i_lidar, 6, resblock.cols()) = resblock;
 						lidarcols--;
+					}
+				}
+			}
+		}
+	}
+
+	/*imu与lidar进行时间匹配 列表形式*/
+	void time_match_m_l(MatrixXd& imu, list<Matrix<double, 6, Dynamic>>& lidar, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z)
+	{
+		list<Matrix<double, 6, Dynamic>>::iterator lidarpin = lidar.begin();
+		int cols = imu.cols();
+		int i = 0;//循环到第几个
+		list<Matrix<double, 6, Dynamic>>::iterator temp;
+		list<Matrix<double, 6, Dynamic>> listtemp;
+		while (lidarpin != lidar.end() && i <= cols)
+		{
+			if ((*lidarpin)(0, 0) < imu(0, 0))
+			{
+				temp = lidarpin;
+				lidarpin++;
+				listtemp.splice(listtemp.begin(), lidar, temp);
+				listtemp.clear();
+				continue;
+			}
+			if ((*lidarpin)(0, 0) > imu(0, cols - 1))
+			{
+				temp = lidarpin;
+				lidarpin++;
+				listtemp.splice(listtemp.begin(), lidar, temp);
+				listtemp.clear();
+				continue;
+			}
+			if (fabs((*lidarpin)(0, 0) - imu(0, i)) < 1e-3)
+			{
+
+				Act((*lidarpin), imu(1, i), imu(2, i), imu(3, i), imu(4, i), imu(5, i), imu(6, i), CarrierToLidar_x, CarrierToLidar_y, CarrierToLidar_z);
+				lidarpin++;
+				i++;
+			}
+			else if ((*lidarpin)(0, 0) > imu(0, i))
+			{
+				i++;
+				if ((*lidarpin)(0, 0) < imu(0, i))
+				{
+					i--;
+					if (fabs((*lidarpin)(0, 0) - imu(0, i)) > 1e-3 && fabs((*lidarpin)(0, 0) - imu(0, i)) < 2 * 1e-3)
+					{
+						Act((*lidarpin), imu(1, i), imu(2, i), imu(3, i), imu(4, i), imu(5, i), imu(6, i), CarrierToLidar_x, CarrierToLidar_y, CarrierToLidar_z);
+						i++;
+						lidarpin++;
+					}
+					else
+					{
+						temp = lidarpin;
+						lidarpin++;
+						i++;
+						listtemp.splice(listtemp.begin(), lidar, temp);
+						listtemp.clear();
+					}
+				}
+			}
+			else
+			{
+				i--;
+				if ((*lidarpin)(0, 0) > imu(0, i))
+				{
+					i++;
+					if (fabs((*lidarpin)(0, 0) - imu(0, i)) > 1e-3 && fabs((*lidarpin)(0, 0) - imu(0, i)) < 2 * 1e-3)
+					{
+						Act((*lidarpin), imu(1, i), imu(2, i), imu(3, i), imu(4, i), imu(5, i), imu(6, i), CarrierToLidar_x, CarrierToLidar_y, CarrierToLidar_z);
+						lidarpin++;
+					}
+					else
+					{
+						temp = lidarpin;
+						lidarpin++;
+						listtemp.splice(listtemp.begin(), lidar, temp);
+						listtemp.clear();
 					}
 				}
 			}

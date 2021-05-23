@@ -17,6 +17,9 @@ using namespace std;
 using namespace conversion;
 namespace IMUissue
 {
+	int total;
+	int rest;
+
 	/*保留小数点后n位操作*/
 	double precision(double x, int y)
 	{
@@ -28,7 +31,7 @@ namespace IMUissue
 		return x;
 	}
 	/*读取并解析imu初始数据包*/
-	vector < Matrix<double, 7, 2000>>  Read(string name, int& total, int& rest)
+	vector < Matrix<double, 7, 2000>>  Read(string name)
 	{
 		vector < Matrix<double, 7, 2000>>data;
 		ifstream inFile(name, ios::in | ios::binary);
@@ -86,7 +89,7 @@ namespace IMUissue
 		return data;
 	}
 	/*进行imu数据插值(三次样条插值)*/
-	void imu_timenew(vector < Matrix<double, 7, 2000>>& data, int total, int rest)
+	void imu_timenew(vector < Matrix<double, 7, 2000>>& data)
 	{
 		int sub = precision((data[0](0, 1) - data[0](0, 0)) / 0.001, 0);//求差距
 		for (int m = 0; m < total - 1; m++)//对n-1张矩阵进行遍历

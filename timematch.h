@@ -24,8 +24,11 @@ namespace TIME
 	/*对imu数据进行去拐点操作*/
 	vector <MatrixXd> imudetach(vector < Matrix<double, 7, 2000>> data, int total, int rest);
 
-	/*imu与lidar进行时间匹配*/
-	void time_match(MatrixXd& imu, MatrixXd& lidar, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z);
+	/*imu与lidar进行时间匹配 矩阵形式*/
+	void time_match_m_m(MatrixXd& imu, MatrixXd& lidar, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z);
+
+	/*imu与lidar进行时间匹配 列表形式*/
+	void time_match_m_l(MatrixXd& imu, list<Matrix<double, 6, Dynamic>>& lidar, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z);
 
 	/*将坐标转换为绝对坐标系下*/
 	void Act(Matrix<double, 6, Dynamic >& result_spilt, double xx, double yy, double zz, double r, double p, double h, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z);
