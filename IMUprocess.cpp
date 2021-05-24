@@ -33,6 +33,8 @@ namespace IMUissue
 	/*读取并解析imu初始数据包*/
 	vector < Matrix<double, 7, 2000>>  Read(string name)
 	{
+		total = 0;
+		rest = 0;
 		vector < Matrix<double, 7, 2000>>data;
 		ifstream inFile(name, ios::in | ios::binary);
 		if (!inFile)
