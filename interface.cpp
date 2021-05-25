@@ -916,6 +916,12 @@ namespace Interface
 				time_match_m_l(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
 				strcpy_s(theword, "时间匹配完成。\n");
 				settext(ob, theword);
+				if (temp.size() == 0)
+				{
+					strcpy_s(theword, "匹配结果为空，即无对等的时间戳坐标。\n");
+					settext(ob, theword);
+					continue;
+				}
 				//以下生成点云文件
 				sen = "对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
 				strcpy_s(theword, sen.data());
@@ -1065,6 +1071,12 @@ namespace Interface
 				time_match_m_l(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
 				strcpy_s(theword, "时间匹配完成。\n");
 				settext(ob, theword);
+				if (temp.size() == 0)
+				{
+					strcpy_s(theword, "匹配结果为空，即无对等的时间戳坐标。\n");
+					settext(ob, theword);
+					continue;
+				}
 				//以下生成点云文件
 				sen = "对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
 				strcpy_s(theword, sen.data());
@@ -1161,6 +1173,12 @@ namespace Interface
 				time_match_m_m(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
 				strcpy_s(theword, "时间匹配完成。\n");
 				settext(ob, theword);
+				if (temp.cols() == 0)
+				{
+					strcpy_s(theword, "匹配结果为空，即无对等的时间戳坐标。\n");
+					settext(ob, theword);
+					continue;
+				}
 				//以下生成点云文件
 				sen = "对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
 				strcpy_s(theword, sen.data());

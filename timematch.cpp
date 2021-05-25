@@ -96,7 +96,7 @@ namespace TIME
 		temp.resize(7, 1);
 		for (int i = 0; i < final.cols() - 2; i++)
 		{
-			if (fabs((final(2, i + 1) - final(2, i)) / (final(1, i + 1) - final(1, i)) - (final(2, i + 2) - final(2, i + 1)) / (final(1, i + 2) - final(1, i + 1))) < 0.1)
+			if (fabs((final(2, i + 1) - final(2, i)) / (final(1, i + 1) - final(1, i)) - (final(2, i + 2) - final(2, i + 1)) / (final(1, i + 2) - final(1, i + 1))) < 0.01)
 			{
 				if (!find)
 				{
