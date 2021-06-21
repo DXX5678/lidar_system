@@ -31,6 +31,62 @@ namespace TIME
 		data.clear();
 		data.shrink_to_fit();
 		vector <MatrixXd> results;
+		vector < MatrixXd> alanes;
+		int width = 1;
+		double heading = final(6, 0);
+		MatrixXd temp;
+		for (int i = 0; i < final.cols(); i++)
+		{
+			if (abs(heading - final(6, i)) < 5)
+			{
+				temp.conservativeResize(7, width);
+				temp.block(0, width - 1, 7, 1) = final.col(i);
+				width++;
+			}
+			else
+			{
+				if (temp.cols() == 1)
+				{
+					heading = final(6, i);
+					continue;
+				}
+				else 
+				{
+					alanes.push_back(temp);
+					width = 1;
+					temp.resize(7, 1);
+					heading = final(6, i);
+				}
+			}
+		}
+		long long int count = 0;
+		for (int j = 0; j < alanes.size(); j++)
+		{
+			count = max(count, alanes[j].cols());
+		}
+		for (int i = 0; i < alanes.size(); i++)
+		{
+			if (fabs(count - alanes[i].cols()) < count / 10)
+			{
+				results.push_back(alanes[i]);
+			}
+		}
+		return results;
+	}
+	/*
+	vector <MatrixXd> imudetach(vector < Matrix<double, 7, 2000>> data, int total, int rest)
+	{
+		MatrixXd final;
+		for (int i = 0; i < total - 1; i++)
+		{
+			final.conservativeResize(7, 2000 * (i + 1));
+			final.block(0, i * 2000, 7, 2000) = data[i];
+		}
+		final.conservativeResize(7, 2000 * (total - 1) + rest);
+		final.block(0, (total - 1) * 2000, 7, rest) = data[total - 1].block(0, 0, 7, rest);
+		data.clear();
+		data.shrink_to_fit();
+		vector <MatrixXd> results;
 		long long int xypoint = 0;
 		long long int xpoint = 0;
 		long long int ypoint = 0;
@@ -142,7 +198,7 @@ namespace TIME
 		}
 		return results;
 	}
-
+	*/
 	/*imu与lidar进行时间匹配 矩阵形式*/
 	void time_match_m_m(MatrixXd& imu, MatrixXd& lidar, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z)
 	{
@@ -369,12 +425,12 @@ namespace TIME
 			for (int j = 0; j < 6; j++)
 				if (i == j)anzhiMatrix(i, j) = 1;
 				else anzhiMatrix(i, j) = 0;
-		anzhiMatrix(1, 2) = -radian(H);
-		anzhiMatrix(1, 3) = radian(P);
-		anzhiMatrix(2, 1) = radian(H);
-		anzhiMatrix(2, 3) = -radian(R);
-		anzhiMatrix(3, 1) = -radian(P);
-		anzhiMatrix(3, 2) = radian(R);
+		anzhiMatrix(1, 2) = -(H);
+		anzhiMatrix(1, 3) = (P);
+		anzhiMatrix(2, 1) = (H);
+		anzhiMatrix(2, 3) = -(R);
+		anzhiMatrix(3, 1) = -(P);
+		anzhiMatrix(3, 2) = (R);
 	}
 
 	void Parallel(Matrix<double, 6, Dynamic >& result_spilt, double CarrierToLidar_x, double CarrierToLidar_y, double CarrierToLidar_z)     //矩阵平移

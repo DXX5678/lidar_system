@@ -5,7 +5,19 @@
 
 #include <string>
 
+
+//#ifndef MYTHREAD_H
+#define MYTHREAD_H
+
+//#include <QMainWindow>
+//#include <QObject>
+//#include<QThread>
+
+//#include <QWidget>
+
 using namespace std;
+
+class mythread;
 
 namespace Interface
 {
@@ -46,21 +58,60 @@ namespace Interface
 		double gamma;
 	}coordinate_parameter;
 
+	void testfuc();
 	/// <summary>
 	/// 函数一：不去除拐点 不分航带生成点云文件
-	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置
+	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数
 	/// </summary>
-	void process_n_n(void *,void(*settext)(void *,char[100]),void(*setvalue)(void *,int), file_input, file_output, lidar_parameter, coordinate_parameter);
+	void process_n_n(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num);
 
 	/// <summary>
 	/// 函数二：去除拐点 不分航带生成点云文件
-	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置
+	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数
 	/// </summary>
-	void process_y_n(void*, void(*settext)(void*, char[100]), void(*setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter);
+	void process_y_n(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num);
 
 	/// <summary>
 	/// 函数三：去除拐点 分航带生成点云文件
-	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置
+	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数
 	/// </summary>
-	void process_y_y(void*, void(*settext)(void*, char[100]), void(*setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter);
+	void process_y_y(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num);
 }
+
+/*
+class mythread : public QThread
+{
+	Q_OBJECT
+public:
+	mythread();
+	~mythread();
+
+	int barprocess;
+	string textshow;
+	void changebarprocess(void* a, int b);
+	void changetextshow(void* a, char b[100]);
+
+	void* mainsting;
+	void(mythread::* settext)(void*, char[100]);
+	void(mythread::* setvalue)(void*, int);
+	Interface::file_input file_input_thread;
+	Interface::file_output file_output_thread;
+	Interface::lidar_parameter lidar__parameter_thread;
+	Interface::coordinate_parameter coordinate_parameter_thread;
+
+protected:
+	//QThread的虚函数
+	//线程处理函数
+	//不能直接调用，通过start()间接调用
+	void run();
+
+	//public slots:
+		//void testthread();
+
+signals:
+	void isDone();
+	void intchange();
+	void charchange();
+
+};
+*/

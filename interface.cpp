@@ -11,6 +11,8 @@
 #include "Write_ply.h"
 #include "Write_las.h"
 #include <thread>
+#include <ctime>
+
 
 using namespace Las;
 using namespace Ply;
@@ -23,29 +25,33 @@ using namespace Eigen;
 using namespace std;
 namespace Interface
 {
-	void process_n_n(void* ob, void(*settext)(void*, char[100]), void(*setvalue)(void*, int), file_input fin, file_output fout, lidar_parameter lp, coordinate_parameter cp)
+	void process_n_n(mythread* ob, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input fin, file_output fout, lidar_parameter lp, coordinate_parameter cp, int num)
 	{
 		char theword[100];
+		time_t now;
+		char tmp[16];
 		if (lp.lidar_type == 0)
 		{
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
 			try {
-				RSManager RSX1(lp.lidar_work_model, 16);
-				RSManager RSX2(lp.lidar_work_model, 16);
-				RSManager RSX3(lp.lidar_work_model, 16);
-				RSManager RSX4(lp.lidar_work_model, 16);
-				strcpy_s(theword, "lidar数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				reading = lidar_reading(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取结束。\n");
-				settext(ob, theword);
-				int xxx = reading.size() / 4;
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
+				int xxx = reading.size() / num;
 				list<vector<string>>::iterator first1 = reading.begin();
 				list<vector<string>>::iterator last;
-				vector<list<vector<string>>>reading1(4);
-				for (int i = 0; i < 3; i++)
+				vector<list<vector<string>>>reading1(num);
+				for (int i = 0; i < (num-1); i++)
 				{
 					last = reading.begin();
 					for (int j = 0; j < xxx; j++)
@@ -54,66 +60,76 @@ namespace Interface
 					}
 					reading1[i].splice(reading1[i].begin(), reading, reading.begin(), last);
 				}
-				reading1[3].splice(reading1[3].begin(), reading, reading.begin(), reading.end());
+				reading1[num-1].splice(reading1[num-1].begin(), reading, reading.begin(), reading.end());
 				reading.clear();
-				strcpy_s(theword, "lidar数据解析开始。\n");
-				settext(ob, theword);
-				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(4);
-				std::thread tw1(&RSManager::lidar_manage, RSX1, reading1[0], std::ref(lidar_result[0]));
-				reading1[0].clear();
-				std::thread tw2(&RSManager::lidar_manage, RSX2, reading1[1], std::ref(lidar_result[1]));
-				reading1[1].clear();
-				std::thread tw3(&RSManager::lidar_manage, RSX3, reading1[2], std::ref(lidar_result[2]));
-				reading1[2].clear();
-				std::thread tw4(&RSManager::lidar_manage, RSX4, reading1[3], std::ref(lidar_result[3]));
-				reading1[3].clear();
-
-				tw1.join();
-				setvalue(ob, 25);
-				tw2.join();
-				setvalue(ob, 50);
-				tw3.join();
-				setvalue(ob, 75);
-				tw4.join();
-				setvalue(ob, 100);
-
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析开始。\n");
+				(*ob.*settext)(ob, theword);
+				vector<thread>ths;
+				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(num);
+				for (int i = 0; i < num; i++)
+				{
+					ths.push_back(thread(&RSManager::lidar_manage, RSManager(lp.lidar_work_model, 16), reading1[i], std::ref(lidar_result[i])));
+					reading1[i].clear();
+				}
+				int ccount = 1;
+				for (auto iter = ths.begin(); iter != ths.end(); iter++, ccount++)
+				{
+					iter->join();
+					(*ob.*setvalue)(ob, ccount * 100 / num);
+				}
+				ths.clear();
 				list<Matrix<double, 6, Dynamic>>::iterator pp;
-				for (int i = 3; i >= 0; i--)
+				for (int i = (num-1); i >= 0; i--)
 				{
 					pp = lidar_result[i].begin();
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				strcpy_s(theword, "lidar数据解析结束。\n");
-				settext(ob, theword);
-				setvalue(ob, 0);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析结束。\n");
+				(*ob.*settext)(ob, theword);
+				(*ob.*setvalue)(ob, 0);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
 			for (int i = 0; i < total - 1; i++)
 			{
@@ -124,20 +140,35 @@ namespace Interface
 			imufinal.block(0, (total - 1) * 2000, 7, rest) = imuresult[total - 1].block(0, 0, 7, rest);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
 			//以下进行imu和lidar时间匹配
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
-			strcpy_s(theword, "开始时间匹配。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始时间匹配。\n");
+			(*ob.*settext)(ob, theword);
 			time_match_m_l(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
-			strcpy_s(theword, "时间匹配完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：时间匹配完成。\n");
+			(*ob.*settext)(ob, theword);
 			//以下生成点云文件
-			strcpy_s(theword, "开始生成点云文件···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始生成点云文件···\n");
+			(*ob.*settext)(ob, theword);
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
@@ -156,11 +187,14 @@ namespace Interface
 			else
 			{
 				strcpy_s(theword, "输出文件类型选择错误！\n");
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "点云文件生成完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：点云文件生成完成。\n");
+			(*ob.*settext)(ob, theword);
 		}
 		else if (lp.lidar_type == 1)
 		{
@@ -168,20 +202,22 @@ namespace Interface
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
 			try {
-				RSManager RSX1(lp.lidar_work_model, 32);
-				RSManager RSX2(lp.lidar_work_model, 32);
-				RSManager RSX3(lp.lidar_work_model, 32);
-				RSManager RSX4(lp.lidar_work_model, 32);
-				strcpy_s(theword, "lidar数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				reading = lidar_reading(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取结束。\n");
-				settext(ob, theword);
-				int xxx = reading.size() / 4;
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
+				int xxx = reading.size() / num;
 				list<vector<string>>::iterator first1 = reading.begin();
 				list<vector<string>>::iterator last;
-				vector<list<vector<string>>>reading1(4);
-				for (int i = 0; i < 3; i++)
+				vector<list<vector<string>>>reading1(num);
+				for (int i = 0; i < (num-1); i++)
 				{
 					last = reading.begin();
 					for (int j = 0; j < xxx; j++)
@@ -190,66 +226,76 @@ namespace Interface
 					}
 					reading1[i].splice(reading1[i].begin(), reading, reading.begin(), last);
 				}
-				reading1[3].splice(reading1[3].begin(), reading, reading.begin(), reading.end());
+				reading1[num - 1].splice(reading1[num - 1].begin(), reading, reading.begin(), reading.end());
 				reading.clear();
-				strcpy_s(theword, "lidar数据解析开始。\n");
-				settext(ob, theword);
-				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(4);
-				std::thread tw1(&RSManager::lidar_manage, RSX1, reading1[0], std::ref(lidar_result[0]));
-				reading1[0].clear();
-				std::thread tw2(&RSManager::lidar_manage, RSX2, reading1[1], std::ref(lidar_result[1]));
-				reading1[1].clear();
-				std::thread tw3(&RSManager::lidar_manage, RSX3, reading1[2], std::ref(lidar_result[2]));
-				reading1[2].clear();
-				std::thread tw4(&RSManager::lidar_manage, RSX4, reading1[3], std::ref(lidar_result[3]));
-				reading1[3].clear();
-
-				tw1.join();
-				setvalue(ob, 25);
-				tw2.join();
-				setvalue(ob, 50);
-				tw3.join();
-				setvalue(ob, 75);
-				tw4.join();
-				setvalue(ob, 100);
-
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析开始。\n");
+				(*ob.*settext)(ob, theword);
+				vector<thread>ths;
+				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(num);
+				for (int i = 0; i < num; i++)
+				{
+					ths.push_back(thread(&RSManager::lidar_manage, RSManager(lp.lidar_work_model, 32), reading1[i], std::ref(lidar_result[i])));
+					reading1[i].clear();
+				}
+				int ccount = 1;
+				for (auto iter = ths.begin(); iter != ths.end(); iter++, ccount++)
+				{
+					iter->join();
+					(*ob.*setvalue)(ob, ccount * 100 / num);
+				}
+				ths.clear();
 				list<Matrix<double, 6, Dynamic>>::iterator pp;
-				for (int i = 3; i >= 0; i--)
+				for (int i = (num-1); i >= 0; i--)
 				{
 					pp = lidar_result[i].begin();
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				strcpy_s(theword, "lidar数据解析结束。\n");
-				settext(ob, theword);
-				setvalue(ob, 0);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析结束。\n");
+				(*ob.*settext)(ob, theword);
+				(*ob.*setvalue)(ob, 0);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
 			for (int i = 0; i < total - 1; i++)
 			{
@@ -260,20 +306,35 @@ namespace Interface
 			imufinal.block(0, (total - 1) * 2000, 7, rest) = imuresult[total - 1].block(0, 0, 7, rest);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
 			//以下进行imu和lidar时间匹配
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
-			strcpy_s(theword, "开始时间匹配。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始时间匹配。\n");
+			(*ob.*settext)(ob, theword);
 			time_match_m_l(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
-			strcpy_s(theword, "时间匹配完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：时间匹配完成。\n");
+			(*ob.*settext)(ob, theword);
 			//以下生成点云文件
-			strcpy_s(theword, "开始生成点云文件···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始生成点云文件···\n");
+			(*ob.*settext)(ob, theword);
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
@@ -292,11 +353,14 @@ namespace Interface
 			else
 			{
 				strcpy_s(theword, "输出文件类型选择错误！\n");
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "点云文件生成完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：点云文件生成完成。\n");
+			(*ob.*settext)(ob, theword);
 		}
 		else if (lp.lidar_type == 2)
 		{
@@ -304,38 +368,53 @@ namespace Interface
 			MatrixXd lidar_final;
 			try 
 			{
-				strcpy_s(theword, "lidar数据读取解析开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取解析开始。\n");
+				(*ob.*settext)(ob, theword);
 				lidar_final = lvxReader(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取解析结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取解析结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
 			for (int i = 0; i < total - 1; i++)
 			{
@@ -346,20 +425,35 @@ namespace Interface
 			imufinal.block(0, (total - 1) * 2000, 7, rest) = imuresult[total - 1].block(0, 0, 7, rest);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
 			//以下进行imu和lidar时间匹配
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
-			strcpy_s(theword, "开始时间匹配。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始时间匹配。\n");
+			(*ob.*settext)(ob, theword);
 			time_match_m_m(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
-			strcpy_s(theword, "时间匹配完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：时间匹配完成。\n");
+			(*ob.*settext)(ob, theword);
 			//以下生成点云文件
-			strcpy_s(theword, "开始生成点云文件···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始生成点云文件···\n");
+			(*ob.*settext)(ob, theword);
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
@@ -378,43 +472,50 @@ namespace Interface
 			else
 			{
 				strcpy_s(theword, "输出文件类型选择错误！\n");
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "点云文件生成完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：点云文件生成完成。\n");
+			(*ob.*settext)(ob, theword);
 		}
 		else
 		{
 			strcpy_s(theword, "雷达类型异常。\n");
-			settext(ob, theword);
+			(*ob.*settext)(ob, theword);
 			return;
 		}
 	}
 
-	void process_y_n(void* ob, void(*settext)(void*, char[100]), void(*setvalue)(void*, int), file_input fin, file_output fout, lidar_parameter lp, coordinate_parameter cp)
+	void process_y_n(mythread* ob, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input fin, file_output fout, lidar_parameter lp, coordinate_parameter cp, int num)
 	{
 		char theword[100];
+		time_t now;
+		char tmp[16];
 		if (lp.lidar_type == 0)
 		{
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
 			try {
-				RSManager RSX1(lp.lidar_work_model, 16);
-				RSManager RSX2(lp.lidar_work_model, 16);
-				RSManager RSX3(lp.lidar_work_model, 16);
-				RSManager RSX4(lp.lidar_work_model, 16);
-				strcpy_s(theword, "lidar数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				reading = lidar_reading(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取结束。\n");
-				settext(ob, theword);
-				int xxx = reading.size() / 4;
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
+				int xxx = reading.size() / num;
 				list<vector<string>>::iterator first1 = reading.begin();
 				list<vector<string>>::iterator last;
-				vector<list<vector<string>>>reading1(4);
-				for (int i = 0; i < 3; i++)
+				vector<list<vector<string>>>reading1(num);
+				for (int i = 0; i < (num-1); i++)
 				{
 					last = reading.begin();
 					for (int j = 0; j < xxx; j++)
@@ -423,72 +524,87 @@ namespace Interface
 					}
 					reading1[i].splice(reading1[i].begin(), reading, reading.begin(), last);
 				}
-				reading1[3].splice(reading1[3].begin(), reading, reading.begin(), reading.end());
+				reading1[num - 1].splice(reading1[num - 1].begin(), reading, reading.begin(), reading.end());
 				reading.clear();
-				strcpy_s(theword, "lidar数据解析开始。\n");
-				settext(ob, theword);
-				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(4);
-				std::thread tw1(&RSManager::lidar_manage, RSX1, reading1[0], std::ref(lidar_result[0]));
-				reading1[0].clear();
-				std::thread tw2(&RSManager::lidar_manage, RSX2, reading1[1], std::ref(lidar_result[1]));
-				reading1[1].clear();
-				std::thread tw3(&RSManager::lidar_manage, RSX3, reading1[2], std::ref(lidar_result[2]));
-				reading1[2].clear();
-				std::thread tw4(&RSManager::lidar_manage, RSX4, reading1[3], std::ref(lidar_result[3]));
-				reading1[3].clear();
-
-				tw1.join();
-				setvalue(ob, 25);
-				tw2.join();
-				setvalue(ob, 50);
-				tw3.join();
-				setvalue(ob, 75);
-				tw4.join();
-				setvalue(ob, 100);
-
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析开始。\n");
+				(*ob.*settext)(ob, theword);
+				vector<thread>ths;
+				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(num);
+				for (int i = 0; i < num; i++)
+				{
+					ths.push_back(thread(&RSManager::lidar_manage, RSManager(lp.lidar_work_model, 16), reading1[i], std::ref(lidar_result[i])));
+					reading1[i].clear();
+				}
+				int ccount = 1;
+				for (auto iter = ths.begin(); iter != ths.end(); iter++, ccount++)
+				{
+					iter->join();
+					(*ob.*setvalue)(ob, ccount * 100 / num);
+				}
+				ths.clear();
 				list<Matrix<double, 6, Dynamic>>::iterator pp;
-				for (int i = 3; i >= 0; i--)
+				for (int i = (num-1); i >= 0; i--)
 				{
 					pp = lidar_result[i].begin();
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				strcpy_s(theword, "lidar数据解析结束。\n");
-				settext(ob, theword);
-				setvalue(ob, 0);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析结束。\n");
+				(*ob.*settext)(ob, theword);
+				(*ob.*setvalue)(ob, 0);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
-
-			strcpy_s(theword, "开始航带分离···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始航带分离···\n");
+			(*ob.*settext)(ob, theword);
 			vector < MatrixXd> results = imudetach(imuresult, total, rest);
 			long long num = 0;
 			long long current = 0;
@@ -499,25 +615,40 @@ namespace Interface
 				imufinal.block(0, current, 7, results[i].cols()) = results[i];
 				current += results[i].cols();
 			}
-			strcpy_s(theword, "航带分离完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：航带分离完成。\n");
+			(*ob.*settext)(ob, theword);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
 			results.clear();
 			results.shrink_to_fit();
 
 			//以下进行imu和lidar时间匹配
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
-			strcpy_s(theword, "开始时间匹配。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始时间匹配。\n");
+			(*ob.*settext)(ob, theword);
 			time_match_m_l(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
-			strcpy_s(theword, "时间匹配完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：时间匹配完成。\n");
+			(*ob.*settext)(ob, theword);
 			//以下生成点云文件
-			strcpy_s(theword, "开始生成点云文件···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始生成点云文件···\n");
+			(*ob.*settext)(ob, theword);
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
@@ -536,11 +667,14 @@ namespace Interface
 			else
 			{
 				strcpy_s(theword, "输出文件类型选择错误！\n");
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "点云文件生成完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：点云文件生成完成。\n");
+			(*ob.*settext)(ob, theword);
 		}
 		else if (lp.lidar_type == 1)
 		{
@@ -548,20 +682,22 @@ namespace Interface
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
 			try {
-				RSManager RSX1(lp.lidar_work_model, 32);
-				RSManager RSX2(lp.lidar_work_model, 32);
-				RSManager RSX3(lp.lidar_work_model, 32);
-				RSManager RSX4(lp.lidar_work_model, 32);
-				strcpy_s(theword, "lidar数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				reading = lidar_reading(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取结束。\n");
-				settext(ob, theword);
-				int xxx = reading.size() / 4;
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
+				int xxx = reading.size() / num;
 				list<vector<string>>::iterator first1 = reading.begin();
 				list<vector<string>>::iterator last;
-				vector<list<vector<string>>>reading1(4);
-				for (int i = 0; i < 3; i++)
+				vector<list<vector<string>>>reading1(num);
+				for (int i = 0; i < (num-1); i++)
 				{
 					last = reading.begin();
 					for (int j = 0; j < xxx; j++)
@@ -570,72 +706,87 @@ namespace Interface
 					}
 					reading1[i].splice(reading1[i].begin(), reading, reading.begin(), last);
 				}
-				reading1[3].splice(reading1[3].begin(), reading, reading.begin(), reading.end());
+				reading1[num-1].splice(reading1[num-1].begin(), reading, reading.begin(), reading.end());
 				reading.clear();
-				strcpy_s(theword, "lidar数据解析开始。\n");
-				settext(ob, theword);
-				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(4);
-				std::thread tw1(&RSManager::lidar_manage, RSX1, reading1[0], std::ref(lidar_result[0]));
-				reading1[0].clear();
-				std::thread tw2(&RSManager::lidar_manage, RSX2, reading1[1], std::ref(lidar_result[1]));
-				reading1[1].clear();
-				std::thread tw3(&RSManager::lidar_manage, RSX3, reading1[2], std::ref(lidar_result[2]));
-				reading1[2].clear();
-				std::thread tw4(&RSManager::lidar_manage, RSX4, reading1[3], std::ref(lidar_result[3]));
-				reading1[3].clear();
-
-				tw1.join();
-				setvalue(ob, 25);
-				tw2.join();
-				setvalue(ob, 50);
-				tw3.join();
-				setvalue(ob, 75);
-				tw4.join();
-				setvalue(ob, 100);
-
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析开始。\n");
+				(*ob.*settext)(ob, theword);
+				vector<thread>ths;
+				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(num);
+				for (int i = 0; i < num; i++)
+				{
+					ths.push_back(thread(&RSManager::lidar_manage, RSManager(lp.lidar_work_model, 32), reading1[i], std::ref(lidar_result[i])));
+					reading1[i].clear();
+				}
+				int ccount = 1;
+				for (auto iter = ths.begin(); iter != ths.end(); iter++, ccount++)
+				{
+					iter->join();
+					(*ob.*setvalue)(ob, ccount * 100 / num);
+				}
+				ths.clear();
 				list<Matrix<double, 6, Dynamic>>::iterator pp;
-				for (int i = 3; i >= 0; i--)
+				for (int i = (num-1); i >= 0; i--)
 				{
 					pp = lidar_result[i].begin();
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				strcpy_s(theword, "lidar数据解析结束。\n");
-				settext(ob, theword);
-				setvalue(ob, 0);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析结束。\n");
+				(*ob.*settext)(ob, theword);
+				(*ob.*setvalue)(ob, 0);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
-
-			strcpy_s(theword, "开始航带分离···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始航带分离···\n");
+			(*ob.*settext)(ob, theword);
 			vector < MatrixXd> results = imudetach(imuresult, total, rest);
 			long long num = 0;
 			long long current = 0;
@@ -646,25 +797,40 @@ namespace Interface
 				imufinal.block(0, current, 7, results[i].cols()) = results[i];
 				current += results[i].cols();
 			}
-			strcpy_s(theword, "航带分离完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：航带分离完成。\n");
+			(*ob.*settext)(ob, theword);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
 			results.clear();
 			results.shrink_to_fit();
 
 			//以下进行imu和lidar时间匹配
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
-			strcpy_s(theword, "开始时间匹配。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始时间匹配。\n");
+			(*ob.*settext)(ob, theword);
 			time_match_m_l(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
-			strcpy_s(theword, "时间匹配完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：时间匹配完成。\n");
+			(*ob.*settext)(ob, theword);
 			//以下生成点云文件
-			strcpy_s(theword, "开始生成点云文件···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始生成点云文件···\n");
+			(*ob.*settext)(ob, theword);
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
@@ -683,11 +849,14 @@ namespace Interface
 			else
 			{
 				strcpy_s(theword, "输出文件类型选择错误！\n");
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "点云文件生成完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：点云文件生成完成。\n");
+			(*ob.*settext)(ob, theword);
 		}
 		else if (lp.lidar_type == 2)
 		{
@@ -695,44 +864,64 @@ namespace Interface
 			MatrixXd lidar_final;
 			try
 			{
-				strcpy_s(theword, "lidar数据读取解析开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取解析开始。\n");
+				(*ob.*settext)(ob, theword);
 				lidar_final = lvxReader(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取解析结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取解析结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
-
-			strcpy_s(theword, "开始航带分离···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始航带分离···\n");
+			(*ob.*settext)(ob, theword);
 			vector < MatrixXd> results = imudetach(imuresult, total, rest);
 			long long num = 0;
 			long long current = 0;
@@ -743,25 +932,40 @@ namespace Interface
 				imufinal.block(0, current, 7, results[i].cols()) = results[i];
 				current += results[i].cols();
 			}
-			strcpy_s(theword, "航带分离完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：航带分离完成。\n");
+			(*ob.*settext)(ob, theword);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
 			results.clear();
 			results.shrink_to_fit();
 
 			//以下进行imu和lidar时间匹配
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
-			strcpy_s(theword, "开始时间匹配。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始时间匹配。\n");
+			(*ob.*settext)(ob, theword);
 			time_match_m_m(imufinal, lidar_final, cp.x_offset, cp.y_offset, cp.z_offset);
-			strcpy_s(theword, "时间匹配完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：时间匹配完成。\n");
+			(*ob.*settext)(ob, theword);
 			//以下生成点云文件
-			strcpy_s(theword, "开始生成点云文件···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始生成点云文件···\n");
+			(*ob.*settext)(ob, theword);
 			if (fout.points_file_type == 0)
 			{
 				string file = fout.points_file + ".las";
@@ -780,43 +984,50 @@ namespace Interface
 			else
 			{
 				strcpy_s(theword, "输出文件类型选择错误！\n");
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "点云文件生成完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：点云文件生成完成。\n");
+			(*ob.*settext)(ob, theword);
 		}
 		else
 		{
 			strcpy_s(theword, "雷达类型异常。\n");
-			settext(ob, theword);
+			(*ob.*settext)(ob, theword);
 			return;
 		}
 	}
 
-	void process_y_y(void* ob, void(*settext)(void*, char[100]), void(*setvalue)(void*, int), file_input fin, file_output fout, lidar_parameter lp, coordinate_parameter cp)
+	void process_y_y(mythread* ob, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input fin, file_output fout, lidar_parameter lp, coordinate_parameter cp, int num)
 	{
 		char theword[100];
+		time_t now;
+		char tmp[16];
 		if (lp.lidar_type == 0)
 		{
 			//以下进行lidar数据处理
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
 			try {
-				RSManager RSX1(lp.lidar_work_model, 16);
-				RSManager RSX2(lp.lidar_work_model, 16);
-				RSManager RSX3(lp.lidar_work_model, 16);
-				RSManager RSX4(lp.lidar_work_model, 16);
-				strcpy_s(theword, "lidar数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				reading = lidar_reading(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取结束。\n");
-				settext(ob, theword);
-				int xxx = reading.size() / 4;
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
+				int xxx = reading.size() / num;
 				list<vector<string>>::iterator first1 = reading.begin();
 				list<vector<string>>::iterator last;
-				vector<list<vector<string>>>reading1(4);
-				for (int i = 0; i < 3; i++)
+				vector<list<vector<string>>>reading1(num);
+				for (int i = 0; i < (num-1); i++)
 				{
 					last = reading.begin();
 					for (int j = 0; j < xxx; j++)
@@ -825,79 +1036,99 @@ namespace Interface
 					}
 					reading1[i].splice(reading1[i].begin(), reading, reading.begin(), last);
 				}
-				reading1[3].splice(reading1[3].begin(), reading, reading.begin(), reading.end());
+				reading1[num-1].splice(reading1[num-1].begin(), reading, reading.begin(), reading.end());
 				reading.clear();
-				strcpy_s(theword, "lidar数据解析开始。\n");
-				settext(ob, theword);
-				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(4);
-				std::thread tw1(&RSManager::lidar_manage, RSX1, reading1[0], std::ref(lidar_result[0]));
-				reading1[0].clear();
-				std::thread tw2(&RSManager::lidar_manage, RSX2, reading1[1], std::ref(lidar_result[1]));
-				reading1[1].clear();
-				std::thread tw3(&RSManager::lidar_manage, RSX3, reading1[2], std::ref(lidar_result[2]));
-				reading1[2].clear();
-				std::thread tw4(&RSManager::lidar_manage, RSX4, reading1[3], std::ref(lidar_result[3]));
-				reading1[3].clear();
-
-				tw1.join();
-				setvalue(ob, 25);
-				tw2.join();
-				setvalue(ob, 50);
-				tw3.join();
-				setvalue(ob, 75);
-				tw4.join();
-				setvalue(ob, 100);
-
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析开始。\n");
+				(*ob.*settext)(ob, theword);
+				vector<thread>ths;
+				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(num);
+				for (int i = 0; i < num; i++)
+				{
+					ths.push_back(thread(&RSManager::lidar_manage, RSManager(lp.lidar_work_model, 16), reading1[i], std::ref(lidar_result[i])));
+					reading1[i].clear();
+				}
+				int ccount = 1;
+				for (auto iter = ths.begin(); iter != ths.end(); iter++, ccount++)
+				{
+					iter->join();
+					(*ob.*setvalue)(ob, ccount * 100 / num);
+				}
+				ths.clear();
 				list<Matrix<double, 6, Dynamic>>::iterator pp;
-				for (int i = 3; i >= 0; i--)
+				for (int i = (num-1); i >= 0; i--)
 				{
 					pp = lidar_result[i].begin();
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				strcpy_s(theword, "lidar数据解析结束。\n");
-				settext(ob, theword);
-				setvalue(ob, 0);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析结束。\n");
+				(*ob.*settext)(ob, theword);
+				(*ob.*setvalue)(ob, 0);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
-
-			strcpy_s(theword, "开始航带分离···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始航带分离···\n");
+			(*ob.*settext)(ob, theword);
 			vector < MatrixXd> results = imudetach(imuresult, total, rest);
-			strcpy_s(theword, "航带分离完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：航带分离完成。\n");
+			(*ob.*settext)(ob, theword);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
-
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 
 			for (int i = 0; i < results.size(); i++)
@@ -910,22 +1141,31 @@ namespace Interface
 				}
 
 				//以下进行imu和lidar时间匹配
-				string sen = "对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				string sen = "：对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
 				strcpy_s(theword, sen.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				time_match_m_l(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
-				strcpy_s(theword, "时间匹配完成。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：时间匹配完成。\n");
+				(*ob.*settext)(ob, theword);
 				if (temp.size() == 0)
 				{
 					strcpy_s(theword, "匹配结果为空，即无对等的时间戳坐标。\n");
-					settext(ob, theword);
+					(*ob.*settext)(ob, theword);
 					continue;
 				}
 				//以下生成点云文件
-				sen = "对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				sen = "：对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
 				strcpy_s(theword, sen.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				if (fout.points_file_type == 0)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".las";
@@ -944,11 +1184,14 @@ namespace Interface
 				else
 				{
 					strcpy_s(theword, "输出文件类型选择错误！\n");
-					settext(ob, theword);
+					(*ob.*settext)(ob, theword);
 					return;
 				}
-				strcpy_s(theword, "点云文件生成完成。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：点云文件生成完成。\n");
+				(*ob.*settext)(ob, theword);
 				temp.clear();
 			}
 		}
@@ -958,20 +1201,22 @@ namespace Interface
 			list<Matrix<double, 6, Dynamic>> lidar_final;
 			list<vector<string>>reading;
 			try {
-				RSManager RSX1(lp.lidar_work_model, 32);
-				RSManager RSX2(lp.lidar_work_model, 32);
-				RSManager RSX3(lp.lidar_work_model, 32);
-				RSManager RSX4(lp.lidar_work_model, 32);
-				strcpy_s(theword, "lidar数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				reading = lidar_reading(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取结束。\n");
-				settext(ob, theword);
-				int xxx = reading.size() / 4;
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
+				int xxx = reading.size() / num;
 				list<vector<string>>::iterator first1 = reading.begin();
 				list<vector<string>>::iterator last;
-				vector<list<vector<string>>>reading1(4);
-				for (int i = 0; i < 3; i++)
+				vector<list<vector<string>>>reading1(num);
+				for (int i = 0; i < (num-1); i++)
 				{
 					last = reading.begin();
 					for (int j = 0; j < xxx; j++)
@@ -980,80 +1225,102 @@ namespace Interface
 					}
 					reading1[i].splice(reading1[i].begin(), reading, reading.begin(), last);
 				}
-				reading1[3].splice(reading1[3].begin(), reading, reading.begin(), reading.end());
+				reading1[num-1].splice(reading1[num-1].begin(), reading, reading.begin(), reading.end());
 				reading.clear();
-				strcpy_s(theword, "lidar数据解析开始。\n");
-				settext(ob, theword);
-				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(4);
-				std::thread tw1(&RSManager::lidar_manage, RSX1, reading1[0], std::ref(lidar_result[0]));
-				reading1[0].clear();
-				std::thread tw2(&RSManager::lidar_manage, RSX2, reading1[1], std::ref(lidar_result[1]));
-				reading1[1].clear();
-				std::thread tw3(&RSManager::lidar_manage, RSX3, reading1[2], std::ref(lidar_result[2]));
-				reading1[2].clear();
-				std::thread tw4(&RSManager::lidar_manage, RSX4, reading1[3], std::ref(lidar_result[3]));
-				reading1[3].clear();
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析开始。\n");
+				(*ob.*settext)(ob, theword);
+				vector<thread>ths;
+				vector<list<Matrix<double, 6, Dynamic>>>lidar_result(num);
+				for (int i = 0; i < num; i++)
+				{
+					ths.push_back(thread(&RSManager::lidar_manage, RSManager(lp.lidar_work_model, 32), reading1[i], std::ref(lidar_result[i])));
+					reading1[i].clear();
+				}
+				int ccount = 1;
+				for (auto iter = ths.begin(); iter != ths.end(); iter++, ccount++)
+				{
+					iter->join();
+					(*ob.*setvalue)(ob, ccount * 100 / num);
+				}
+				ths.clear();
 
-				tw1.join();
-				setvalue(ob, 25);
-				tw2.join();
-				setvalue(ob, 50);
-				tw3.join();
-				setvalue(ob, 75);
-				tw4.join();
-				setvalue(ob, 100);
 
 				list<Matrix<double, 6, Dynamic>>::iterator pp;
-				for (int i = 3; i >= 0; i--)
+				for (int i = (num-1); i >= 0; i--)
 				{
 					pp = lidar_result[i].begin();
 					pp++;
 					lidar_final.splice(lidar_final.begin(), lidar_result[i], pp, lidar_result[i].end());
 				}
-				strcpy_s(theword, "lidar数据解析结束。\n");
-				settext(ob, theword);
-				setvalue(ob, 0);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据解析结束。\n");
+				(*ob.*settext)(ob, theword);
+				(*ob.*setvalue)(ob, 0);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
-
-			strcpy_s(theword, "开始航带分离···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始航带分离···\n");
+			(*ob.*settext)(ob, theword);
 			vector < MatrixXd> results = imudetach(imuresult, total, rest);
-			strcpy_s(theword, "航带分离完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：航带分离完成。\n");
+			(*ob.*settext)(ob, theword);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
-
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 
 			for (int i = 0; i < results.size(); i++)
@@ -1065,22 +1332,31 @@ namespace Interface
 					temp.push_back(*ap);
 				}
 				//以下进行imu和lidar时间匹配
-				string sen = "对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				string sen = "：对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
 				strcpy_s(theword, sen.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				time_match_m_l(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
-				strcpy_s(theword, "时间匹配完成。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：时间匹配完成。\n");
+				(*ob.*settext)(ob, theword);
 				if (temp.size() == 0)
 				{
 					strcpy_s(theword, "匹配结果为空，即无对等的时间戳坐标。\n");
-					settext(ob, theword);
+					(*ob.*settext)(ob, theword);
 					continue;
 				}
 				//以下生成点云文件
-				sen = "对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				sen = "：对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
 				strcpy_s(theword, sen.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				if (fout.points_file_type == 0)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".las";
@@ -1099,11 +1375,14 @@ namespace Interface
 				else
 				{
 					strcpy_s(theword, "输出文件类型选择错误！\n");
-					settext(ob, theword);
+					(*ob.*settext)(ob, theword);
 					return;
 				}
-				strcpy_s(theword, "点云文件生成完成。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：点云文件生成完成。\n");
+				(*ob.*settext)(ob, theword);
 				temp.clear();
 			}
 		}
@@ -1113,52 +1392,77 @@ namespace Interface
 			MatrixXd lidar_final;
 			try
 			{
-				strcpy_s(theword, "lidar数据读取解析开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取解析开始。\n");
+				(*ob.*settext)(ob, theword);
 				lidar_final = lvxReader(fin.lidar_data_file);
-				strcpy_s(theword, "lidar数据读取解析结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：lidar数据读取解析结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
 			//以下进行imu数据处理
 			vector < Matrix<double, 7, 2000>> imuresult;
 			MatrixXd imufinal;
 			try {
-				strcpy_s(theword, "imu数据读取开始。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取开始。\n");
+				(*ob.*settext)(ob, theword);
 				imuresult = Read(fin.imu_data_file);
-				strcpy_s(theword, "imu数据读取结束。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：imu数据读取结束。\n");
+				(*ob.*settext)(ob, theword);
 			}
 			catch (string mes)
 			{
 				mes += "\n";
 				strcpy_s(theword, mes.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				return;
 			}
-			strcpy_s(theword, "imu数据插值开始。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值开始。\n");
+			(*ob.*settext)(ob, theword);
 			imu_timenew(imuresult);
-			strcpy_s(theword, "imu数据插值结束。\n");
-			settext(ob, theword);
-
-			strcpy_s(theword, "开始航带分离···\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：imu数据插值结束。\n");
+			(*ob.*settext)(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：开始航带分离···\n");
+			(*ob.*settext)(ob, theword);
 			vector < MatrixXd> results = imudetach(imuresult, total, rest);
-			strcpy_s(theword, "航带分离完成。\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：航带分离完成。\n");
+			(*ob.*settext)(ob, theword);
 			imuresult.clear();
 			imuresult.shrink_to_fit();
-
-			strcpy_s(theword, "设置安置矩阵...\n");
-			settext(ob, theword);
+			time(&now);
+			strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+			(*ob.*settext)(ob, tmp);
+			strcpy_s(theword, "：设置安置矩阵...\n");
+			(*ob.*settext)(ob, theword);
 			Get_anzhi_RotationMatrix(cp.alpha, cp.beta, cp.gamma);
 
 			for (int i = 0; i < results.size(); i++)
@@ -1167,22 +1471,31 @@ namespace Interface
 				temp.resize(lidar_final.rows(), lidar_final.cols());
 				temp.block(0, 0, lidar_final.rows(), lidar_final.cols()) = lidar_final;
 				//以下进行imu和lidar时间匹配
-				string sen = "对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				string sen = "：对第" + to_string(i + 1) + "条航带开始时间匹配。\n";
 				strcpy_s(theword, sen.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				time_match_m_m(results[i], temp, cp.x_offset, cp.y_offset, cp.z_offset);
-				strcpy_s(theword, "时间匹配完成。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：时间匹配完成。\n");
+				(*ob.*settext)(ob, theword);
 				if (temp.cols() == 0)
 				{
 					strcpy_s(theword, "匹配结果为空，即无对等的时间戳坐标。\n");
-					settext(ob, theword);
+					(*ob.*settext)(ob, theword);
 					continue;
 				}
 				//以下生成点云文件
-				sen = "对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				sen = "：对第" + to_string(i + 1) + "条航带开始生成其点云文件。\n";
 				strcpy_s(theword, sen.data());
-				settext(ob, theword);
+				(*ob.*settext)(ob, theword);
 				if (fout.points_file_type == 0)
 				{
 					string file = fout.points_file + to_string(i + 1) + ".las";
@@ -1201,17 +1514,20 @@ namespace Interface
 				else
 				{
 					strcpy_s(theword, "输出文件类型选择错误！\n");
-					settext(ob, theword);
+					(*ob.*settext)(ob, theword);
 					return;
 				}
-				strcpy_s(theword, "点云文件生成完成。\n");
-				settext(ob, theword);
+				time(&now);
+				strftime(tmp, sizeof(tmp), "%H:%M:%S", localtime(&now));
+				(*ob.*settext)(ob, tmp);
+				strcpy_s(theword, "：点云文件生成完成。\n");
+				(*ob.*settext)(ob, theword);
 			}
 		}
 		else
 		{
 			strcpy_s(theword, "雷达类型异常。\n");
-			settext(ob, theword);
+			(*ob.*settext)(ob, theword);
 			return;
 		}
 	}
