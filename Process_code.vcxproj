@@ -162,6 +162,7 @@
     <ClCompile Include="IMUanalyze.cpp" />
     <ClCompile Include="IMUprocess.cpp" />
     <ClCompile Include="interface.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="RSanalyze.cpp" />
     <ClCompile Include="RSprocess.cpp" />
     <ClCompile Include="Spline.cpp" />

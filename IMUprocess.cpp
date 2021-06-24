@@ -62,6 +62,8 @@ namespace IMUissue
 				double GPSeast, GPSnorth;
 				int zone_number;
 				string zone_letter;
+				temp[1] = precision(temp[1], 8);
+				temp[2] = precision(temp[2], 8);
 				if (from_latlon(temp[1], temp[2], GPSeast, GPSnorth, zone_number, zone_letter))//判定正确投影
 				{
 					temp[2] = GPSeast;
