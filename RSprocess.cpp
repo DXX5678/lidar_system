@@ -47,9 +47,9 @@ namespace Lidarissue {
 		try {
 			timing_offsets = calc_timing_offsets();
 		}
-		catch (string mes)
+		catch (const char* c)
 		{
-			throw mes;
+			throw c;
 		}
 		frame_nr = 0;
 		if (lidar_type == 16)
@@ -76,14 +76,14 @@ namespace Lidarissue {
 	}
 
 	/*RS型雷达管理者的雷达处理函数，输入为读函数返回的初始数据，返回解析数据格式为元素为矩阵的列表*/
-	void RSManager::lidar_manage(list<vector<string>> datalist, list<Matrix<double, 6, Dynamic >>& lidar_final)
+	void RSManager::lidar_manage(list<vector<string>> datalist, list<Matrix<double, 7, Dynamic >>& lidar_final)
 	{
 		Data DATAX;
 		int sum = 0;
 		long long int kum = 0;
 		int col_num = 1;
-		Matrix<double, 6, Dynamic>lidar_temp;
-		lidar_temp.resize(6, 1);
+		Matrix<double, 7, Dynamic>lidar_temp;
+		lidar_temp.resize(7, 1);
 		list<vector<string>>::iterator id = datalist.begin();
 		DATAX = RS1.process_lidardata_frame((*id)[0]);
 		double time = DATAX.timestamps[0];
@@ -94,7 +94,7 @@ namespace Lidarissue {
 				DATAX = RS1.process_lidardata_frame((*id)[i]);
 				for (int j = 0; j < 384; j++)
 				{
-					if ((DATAX.azimuth[j] < 90 || DATAX.azimuth[j]>270) && (DATAX.distances[j] < 200) && (DATAX.distances[j] > 15))
+					if ((DATAX.azimuth[j] < 90 || DATAX.azimuth[j]>270) && (DATAX.distances[j] < 170) && (DATAX.distances[j] > 15))
 					{
 						if ((time == DATAX.timestamps[j]))
 						{
@@ -104,16 +104,17 @@ namespace Lidarissue {
 							lidar_temp(3, col_num - 1) = DATAX.Z[j];
 							lidar_temp(4, col_num - 1) = DATAX.intensities[j];
 							lidar_temp(5, col_num - 1) = DATAX.wavenumber[j];
+							lidar_temp(6, col_num - 1) = DATAX.distances[j];
 							++col_num;
 							time = DATAX.timestamps[j];
-							lidar_temp.conservativeResize(6, col_num);
+							lidar_temp.conservativeResize(7, col_num);
 						}
 						else
 						{
 							time = DATAX.timestamps[j];
-							lidar_temp.conservativeResize(6, col_num - 1);
+							lidar_temp.conservativeResize(7, col_num - 1);
 							lidar_final.push_back(lidar_temp);
-							lidar_temp.resize(6, 1);
+							lidar_temp.resize(7, 1);
 							col_num = 1;
 							j--;
 						}
@@ -125,9 +126,9 @@ namespace Lidarissue {
 			(*id).clear();
 			(*id).shrink_to_fit();
 		}
-		lidar_temp.conservativeResize(6, col_num - 1);
+		lidar_temp.conservativeResize(7, col_num - 1);
 		lidar_final.push_back(lidar_temp);
-		lidar_temp.resize(6, 1);
+		lidar_temp.resize(7, 1);
 	}
 
 	/*获得对应雷达类型的时间偏移量*/

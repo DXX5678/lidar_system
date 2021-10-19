@@ -8,9 +8,9 @@ using namespace std;
 
 namespace Ply
 {
-	//生成ply文件 矩阵形式
-	void writePly_m(string file, MatrixXd final);
-
 	//生成ply文件 列表形式
-	void writePly_l(string file, list<Matrix<double, 6, Dynamic >> final);
+	void writePly_l(string file, list<Matrix<double, 7, Dynamic >> final);
+
+	//生成ply文件 列表形式-avia
+	void AwritePly_l(string file, list<Matrix<double, 6, Dynamic >> final);
 }

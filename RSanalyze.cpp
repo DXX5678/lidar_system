@@ -139,23 +139,43 @@ public:
 		if (count_lasers == 16)
 		{
 			assert(data[0] + data[1] == "ffee");
-			azimuth_per_block.push_back(strtol((data[2] + data[3]).data(), NULL, 16) / static_cast<double>(100));
+			azimuth_per_block.push_back(double(strtol((data[2] + data[3]).data(), NULL, 16) / static_cast<double>(100)));
 			for (int i = 1; i <= 32; i++)
 			{
-				distances.push_back(strtol((data[3 * static_cast<Eigen::Index>(i) + 1] + data[3 * static_cast<Eigen::Index>(i) + 2]).data(), NULL, 16) * FACTOR_CM2M_16);
-				intensities.push_back(strtol((data[3 * static_cast<Eigen::Index>(i) + 3]).data(), NULL, 16));
+				distances.push_back(strtol((data[3 * static_cast<Eigen::EigenBase<Eigen::Matrix<std::string, 1, 100, 1, 1, 100>>::Index>(i) + 1] + data[3 * static_cast<Eigen::EigenBase<Eigen::Matrix<std::string, 1, 100, 1, 1, 100>>::Index>(i) + 2]).data(), NULL, 16) * FACTOR_CM2M_16);
+				intensities.push_back(strtol((data[3 * static_cast<Eigen::EigenBase<Eigen::Matrix<std::string, 1, 100, 1, 1, 100>>::Index>(i) + 3]).data(), NULL, 16));
 			}
 		}
 		else
 		{
 			assert(data[0] + data[1] == "ffee");
-			azimuth_per_block.push_back(strtol((data[2] + data[3]).data(), NULL, 16) / static_cast<double>(100));
+			azimuth_per_block.push_back(double(strtol((data[2] + data[3]).data(), NULL, 16) / static_cast<double>(100)));
 			for (int i = 1; i <= 32; i++)
 			{
-				distances.push_back(strtol((data[3 * static_cast<Eigen::Index>(i) + 1] + data[3 * static_cast<Eigen::Index>(i) + 2]).data(), NULL, 16) * FACTOR_CM2M_32);
-				intensities.push_back(strtol((data[3 * static_cast<Eigen::Index>(i) + 3]).data(), NULL, 16));
+				distances.push_back(strtol((data[3 * static_cast<Eigen::EigenBase<Eigen::Matrix<std::string, 1, 100, 1, 1, 100>>::Index>(i) + 1] + data[3 * static_cast<Eigen::EigenBase<Eigen::Matrix<std::string, 1, 100, 1, 1, 100>>::Index>(i) + 2]).data(), NULL, 16) * FACTOR_CM2M_32);
+				intensities.push_back(strtol((data[3 * static_cast<Eigen::EigenBase<Eigen::Matrix<std::string, 1, 100, 1, 1, 100>>::Index>(i) + 3]).data(), NULL, 16));
 			}
 		}
+	}
+
+	/*校准水平角*/
+	double correctAzimuth(double azimuth, int dsr)
+	{
+		double azimuth_r;
+		//int azimuth_r;
+		if (azimuth > 0.0 && azimuth < 30.0)
+		{
+			azimuth = azimuth + sigm(0, dsr) + 360.0f;
+		}
+		else
+		{
+			azimuth = azimuth + sigm(0, dsr);
+		}
+		//azimuth_r = (int)azimuth;
+		//azimuth_r %= 360;
+		azimuth_r = (int)(azimuth*1000.0) % 360000;
+		azimuth_r /= 1000.0;
+		return azimuth_r;
 	}
 
 	/*得到最终水平角矩阵*/
@@ -163,33 +183,90 @@ public:
 	{
 		Eigen::Matrix<double, 12, 32>azimuth;
 		Eigen::VectorXd* vec = new Eigen::VectorXd();
-		(*vec).setLinSpaced(32, 0, 31);
 		Eigen::Matrix<double, 1, 12>* temp = new Eigen::Matrix<double, 1, 12>();
 		*temp = azimuth_per_matrix;
-		for (int i = 0; i < azimuth_per_matrix.size(); i++)
+		if (count_lasers == 32)
 		{
-			double azimuth_gap;
-			try {
+			for (int i = 0; i < 12; i++)
+			{
+				double azimuth_gap;
 				if (i == 11)
 				{
 					if ((*temp)(0, i) < (*temp)(0, static_cast<Eigen::Index>(i) - 1))
 						(*temp)(0, i) += 360;
 					azimuth_gap = (*temp)(0, i) - (*temp)(0, static_cast<Eigen::Index>(i) - 1);
+					if (azimuth_gap <= 0.0 || azimuth_gap > 0.25)
+					{
+						azimuth.row(i) = Eigen::Matrix<double, 1, 32>::Ones(1, 32) * 150;
+						continue;
+					}
 				}
 				else
 				{
 					if ((*temp)(0, static_cast<Eigen::Index>(i) + 1) < (*temp)(0, i))
 						(*temp)(0, static_cast<Eigen::Index>(i) + 1) += 360;
 					azimuth_gap = (*temp)(0, static_cast<Eigen::Index>(i) + 1) - (*temp)(0, i);
+					if (azimuth_gap <= 0.0 || azimuth_gap > 0.25)
+					{
+						azimuth.row(i) = Eigen::Matrix<double, 1, 32>::Ones(1, 32) * 150;
+						continue;
+					}
+				}
+				double factor = azimuth_gap / 50.0;
+				(*vec).setLinSpaced(16, 0, 15);
+				azimuth.block(i, 0, 1, 16) = (((*vec) * factor * 3.0).array() + (*temp)(0, i)).transpose();
+				azimuth.block(i, 16, 1, 16) = (((*vec) * factor * 3.0).array() + (*temp)(0, i)).transpose();
+				for (int n = 0; n < 32; n++)
+				{
+					azimuth(i, n) = correctAzimuth(azimuth(i, n), n);
 				}
 			}
-			catch (exception) {
-				if ((*temp)(0, i) < (*temp)(0, static_cast<Eigen::Index>(i) - 1))
-					(*temp)(0, i) += 360;
-				azimuth_gap = (*temp)(0, i) - (*temp)(0, static_cast<Eigen::Index>(i) - 1);
+		}
+		else
+		{
+			for (int i = 0; i < 12; i++)
+			{
+				double azimuth_gap;
+				if (i == 11)
+				{
+					int azi1, azi2;
+					azi2 = (*temp)(0, i - 1);
+					azi1 = (*temp)(0, i);
+					azimuth_gap = (double)((360 + azi1 - azi2) % 360);
+					if (azimuth_gap <= 0.0 || azimuth_gap > 0.75)
+					{
+						azimuth.row(i) = Eigen::Matrix<double, 1, 32>::Ones(1, 32) * 150;
+						continue;
+					}
+				}
+				else
+				{
+					int azi1, azi2;
+					azi1 = (*temp)(0, i + 1);
+					azi2 = (*temp)(0, i);
+					azimuth_gap = (double)((360 + azi1 - azi2) % 360);
+					if (azimuth_gap <= 0.0 || azimuth_gap > 0.75)
+					{
+						azimuth.row(i) = Eigen::Matrix<double, 1, 32>::Ones(1, 32) * 150;
+						continue;
+					}
+				}
+				for (int firing = 0; firing < 2; firing++)
+				{
+					for (int n = 0; n < 16; n++)
+					{
+						double azimuth_corrected_f = (*temp)(0, i) + (azimuth_gap * ((n * 3.0) + (firing * 50)) / 100);
+						if (firing == 0)
+						{
+							azimuth(i, n) = ((int)round(azimuth_corrected_f)) % 360;
+						}
+						else
+						{
+							azimuth(i, n + 16) = ((int)round(azimuth_corrected_f)) % 360;
+						}
+					}
+				}
 			}
-			double factor = azimuth_gap / 32;
-			azimuth.row(i) = (((*vec) * factor).array() + (*temp)(0, i)).transpose();
 		}
 		delete(vec);
 		delete(temp);
@@ -209,8 +286,7 @@ public:
 		else
 		{
 			longitudes = omega * M_PI / 180;
-			Eigen::Map<Eigen::VectorXd> vec(sigm.data(), sigm.size());
-			latitudes = (azimuth.rowwise() + vec.transpose()) * M_PI / 180;
+			latitudes = azimuth * M_PI / 180;
 		}
 		Eigen::MatrixXd hypotenuses = distances.array().rowwise() * cos(Eigen::Map<Eigen::VectorXd>(longitudes.data(), longitudes.size()).array()).transpose().array();
 		X = precision(hypotenuses.array() * sin(latitudes.array()).array());

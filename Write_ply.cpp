@@ -29,10 +29,12 @@ using namespace Eigen;
 
 namespace Ply 
 {
-	void writePly_m(string file, MatrixXd final)
+	void writePly_l(string file, list<Matrix<double, 7, Dynamic >> final)
 	{
 		using namespace pdal;
 		using namespace pdal::Dimension;
+		list<Matrix<double, 7, Dynamic >>::iterator idk = final.begin();
+		list<Matrix<double, 7, Dynamic >>::iterator idj = final.end();
 
 		string filename = file;
 		Options xjOptions;
@@ -47,22 +49,29 @@ namespace Ply
 		table.layout()->registerDim(Dimension::Id::Intensity);
 		PointViewPtr view(new PointView(table));
 
-		for (int i = 0; i < final.cols(); i++)
+		long long int num = 0;
+		for (list<Matrix<double, 7, Dynamic >>::iterator id = idk; id != idj; id++)
 		{
-			double GPStime = final(0, i);
-			double x = final(1, i);
-			double y = final(2, i);
-			double z = final(3, i);
-			int intensity = int(final(4, i));
-			int wavenumber = int(final(5, i));
-			view->setField(Dimension::Id::GpsTime, i, GPStime);
-			view->setField(Dimension::Id::X, i, x);
-			view->setField(Dimension::Id::Y, i, y);
-			view->setField(Dimension::Id::Z, i, z);
-			view->setField(Dimension::Id::Intensity, i, intensity);
-			view->setField(Dimension::Id::NumberOfReturns, i, wavenumber);
+			if (id != idk)
+			{
+				id--;
+				num += (*id).cols();
+				id++;
+			}
+			for (int i = 0; i < (*id).cols(); i++)
+			{
+				double GPStime = (*id)(0, i);
+				double x = (*id)(1, i);
+				double y = (*id)(2, i);
+				double z = (*id)(3, i);
+				int intensity = int((*id)(4, i));
+				view->setField(Dimension::Id::GpsTime, i + num, GPStime);
+				view->setField(Dimension::Id::X, i + num, x);
+				view->setField(Dimension::Id::Y, i + num, y);
+				view->setField(Dimension::Id::Z, i + num, z);
+				view->setField(Dimension::Id::Intensity, i + num, intensity);
+			}
 		}
-
 		BufferReader xjBufferReader;
 		xjBufferReader.addView(view);
 
@@ -76,7 +85,7 @@ namespace Ply
 		writer->execute(table);
 	}
 
-	void writePly_l(string file, list<Matrix<double, 6, Dynamic >> final)
+	void AwritePly_l(string file, list<Matrix<double, 6, Dynamic >> final)
 	{
 		using namespace pdal;
 		using namespace pdal::Dimension;

@@ -1,31 +1,36 @@
-#include "Aviaprocess.h"
+ï»¿#include "Aviaprocess.h"
 #include <iostream>
 #include <fstream>
 #include <stdio.h>
 #include <atltime.h>
 #include <ctime>
 #include <vector>
-
+#include <io.h>
+#include <ctime>
+#include<string.h>
+#include<list>
+#pragma warning(disable:4996)
 using namespace std;
 using namespace Eigen;
 
 namespace Aviaissue
+
 {
 	size_t getFileSize_C(const char* file)
 	{
-		size_t size = -1;
-		FILE* path;
-		path = fopen(file, "r");
-		if (NULL == path)
+		size_t size;
+		ifstream is;
+		is.open(file, ios::binary);
+		if (!is.is_open())
 		{
-			throw"lidarÎÄ¼ş´ò¿ªÊ§°Ü£¡";
+			throw"lidaræ–‡ä»¶æ‰“å¼€å¤±è´¥ï¼";
 		}
 		else
 		{
-			fseek(path, 0, SEEK_END);//ÉèÖÃÁ÷ÎÄ¼şÖ¸ÕëµÄÎ»ÖÃ,ÒÔSEEK_ENDÎªÆğµã£¬Æ«ÒÆÁ¿ÊÇ0,Òà¼´SEEK_END
-			size = ftell(path);//º¯Êı½á¹û£ºµ±Ç°ÎÄ¼şÁ÷Ö¸ÕëÎ»ÖÃÏà¶ÔÓÚÎÄ¼şÆğÊ¼Î»ÖÃµÄ×Ö½ÚÆ«ÒÆÁ¿
-			fclose(path);
-			path = NULL;
+
+			is.seekg(0, ios::end);//è®¾ç½®æµæ–‡ä»¶æŒ‡é’ˆçš„ä½ç½®,ä»¥SEEK_ENDä¸ºèµ·ç‚¹ï¼Œåç§»é‡æ˜¯0,äº¦å³SEEK_END
+			size = is.tellg();//å‡½æ•°ç»“æœï¼šå½“å‰æ–‡ä»¶æµæŒ‡é’ˆä½ç½®ç›¸å¯¹äºæ–‡ä»¶èµ·å§‹ä½ç½®çš„å­—èŠ‚åç§»é‡
+			is.close();
 		}
 
 		return size;
@@ -41,7 +46,7 @@ namespace Aviaissue
 		return x;
 	}
 
-	double timeconver(uint8_t timestamp[8])
+	double timeconver(uint8_t timestamp[4], uint32_t timestamp_us)
 	{
 		int year = int(timestamp[0]);
 		if (year < 2000)
@@ -51,38 +56,32 @@ namespace Aviaissue
 		int month = int(timestamp[1]);
 		int day = int(timestamp[2]);
 		int hour = int(timestamp[3]);
-		string offset;
-		for (int i = 4; i < 8; i++)
-		{
-			offset += timestamp[i];
-		}
-		double us = double(atoi(offset.data()));
+		int us = int(timestamp_us);
 		CTime time(year, month, day, 0, 0, 0);
 		int week = time.GetDayOfWeek() - 1;
-		double timeoffset = week * 86400 + hour * 3600 + us / 1000000;
+		double timeoffset = week * 86400 + hour * 3600 + (double)us/ 1000000;//86400
 		return timeoffset;
 	}
 
-	MatrixXd lvxReader(string filename)
+	vector<long long int> prelvx(string filename)
 	{
+		vector<long long int> number;
 		size_t file_size;
 		try
 		{
 			file_size = getFileSize_C(filename.data());
 		}
-		catch (string mes)
+		catch (const char* c)
 		{
-			throw mes;
+			throw c;
 		}
 		vector<LvxDeviceInfo> device_info_vec_;
-		vector<MatrixXd> points;
-		MatrixXd result;
 		unique_ptr<char[]> read_buffer(new char[READ_BUFFER_LEN]);
 		fstream fp;
 		fp.open(filename, ios::in | ios::binary);
 		if (!fp.is_open())
 		{
-			throw"ÎÄ¼ş´ò¿ªÊ§°Ü£¡";
+			throw"æ–‡ä»¶æ‰“å¼€å¤±è´¥ï¼";
 		}
 
 		uint64_t cur_offset_ = 0;
@@ -94,7 +93,220 @@ namespace Aviaissue
 		cur_offset_ += sizeof(LvxFilePublicHeader);
 		if (lvx_file_public_header_.magic_code != MAGIC_CODE)
 		{
-			throw"lvxÎÄ¼şĞ£ÑéÂë´íÎó£¡";
+			throw"lvxæ–‡ä»¶æ ¡éªŒç é”™è¯¯ï¼";
+		}
+
+		memcpy(&lvx_file_private_header_, read_buffer.get() + cur_offset_, sizeof(LvxFilePrivateHeader));
+		cur_offset_ += sizeof(LvxFilePrivateHeader);
+
+
+		int device_num = lvx_file_private_header_.device_count;
+		device_info_vec_.resize(device_num);
+		int device_info_size = device_num * sizeof(LvxDeviceInfo);
+		fp.read((char*)read_buffer.get() + cur_offset_, device_info_size);
+		for (int i = 0; i < device_num; ++i)
+		{
+			memcpy(&device_info_vec_[i], read_buffer.get() + cur_offset_, sizeof(LvxDeviceInfo));
+			cur_offset_ += sizeof(LvxDeviceInfo);
+		}
+		long long int count = 0;
+		double time1, time2;
+		FrameHeader frame_header;
+		LvxBasePackHeader lvx_basepacket_header;
+		Point data;
+		do
+		{
+			fp.read((char*)read_buffer.get(), sizeof(FrameHeader));
+			memcpy(&frame_header, read_buffer.get(), sizeof(FrameHeader));
+			if (frame_header.current_offset == 0)
+			{
+				break;
+			}
+			if (cur_offset_ != frame_header.current_offset)
+			{
+				throw"lvxæ–‡ä»¶è¯»å–FrameHeaderå‡ºé”™ï¼";
+			}
+			cur_offset_ += sizeof(FrameHeader);
+
+			while (cur_offset_ < frame_header.next_offset)
+			{
+				fp.read((char*)read_buffer.get(), sizeof(LvxBasePackHeader));
+				memcpy(&lvx_basepacket_header, read_buffer.get(), sizeof(LvxBasePackHeader));
+				cur_offset_ += sizeof(LvxBasePackHeader);
+
+				if (lvx_basepacket_header.timestamp_type != 3 || lvx_basepacket_header.error_code == 0)
+				{
+					uint32_t points_byte_size = sizeof(Point);
+					for (int n = 0; n < TRIPLE_POINT_NUM; n++)
+					{
+						fp.read((char*)read_buffer.get(), points_byte_size);
+						memcpy(&data, read_buffer.get(), points_byte_size);
+						cur_offset_ += points_byte_size;
+					}
+					continue;
+				}
+				double timestamp = timeconver(lvx_basepacket_header.timestamp, lvx_basepacket_header.timestamp_us);
+				time1 = timestamp;
+				if (lvx_basepacket_header.data_type == 7)
+				{
+					uint32_t points_byte_size = sizeof(Point);
+					for (int n = 0; n < TRIPLE_POINT_NUM; n++)
+					{
+						fp.read((char*)read_buffer.get(), points_byte_size);
+						memcpy(&data, read_buffer.get(), points_byte_size);
+						cur_offset_ += points_byte_size;
+						int f1_echo = ((data.f1 & 0x30) >> 4);
+						int f1_intensity = ((data.f1 & 0x0c) >> 2);
+						int f1_position = (data.f1 & 0x03);
+						int f2_echo = ((data.f2 & 0x30) >> 4);
+						int f2_intensity = ((data.f2 & 0x0c) >> 2);
+						int f2_position = (data.f2 & 0x03);
+						int f3_echo = ((data.f3 & 0x30) >> 4);
+						int f3_intensity = ((data.f3 & 0x0c) >> 2);
+						int f3_position = (data.f3 & 0x03);
+						double x1, y1, z1, x2, y2, z2, x3, y3, z3;
+						if (f1_echo != 0 && f1_intensity == 0 && f1_position == 0)
+						{
+							x1 = precision((double(data.x1) / 1000));
+							y1 = precision((double(data.y1) / 1000));
+							z1 = precision((double(data.z1) / 1000));
+							if ((x1 != 0 || y1 != 0 || z1 != 0) && x1 < 250 && x1 > 5)
+							{
+								time2 = precision(timestamp + (double(n * 3) + 0) * 1 / 720000);
+								if (time1 != time2)
+								{
+									if (count == 0)
+									{
+										number.push_back(1);
+										count = 1;
+										time1 = time2;
+									}
+									else
+									{
+										number.push_back(count);
+										count = 1;
+										time1 = time2;
+									}
+								}
+								else
+								{
+									++count;
+								}
+							}
+						}
+						if (f2_echo != 0 && f2_intensity == 0 && f2_position == 0)
+						{
+							x2 = precision((double(data.x2) / 1000));
+							y2 = precision((double(data.y2) / 1000));
+							z2 = precision((double(data.z2) / 1000));
+							if ((x2 != 0 || y2 != 0 || z2 != 0) && x2 < 250 && x2 > 5)
+							{
+								time2 = precision(timestamp + (double(n * 3) + 1) * 1 / 720000);
+								if (time1 != time2)
+								{
+									if (count == 0)
+									{
+										number.push_back(1);
+										count = 1;
+										time1 = time2;
+									}
+									else
+									{
+										number.push_back(count);
+										count = 1;
+										time1 = time2;
+									}
+								}
+								else
+								{
+									++count;
+								}
+							}
+						}
+						if (f3_echo != 0 && f3_intensity == 0 && f3_position == 0)
+						{
+							x3 = precision((double(data.x3) / 1000));
+							y3 = precision((double(data.y3) / 1000));
+							z3 = precision((double(data.z3) / 1000));
+							if ((x3 != 0 || y3 != 0 || z3 != 0) && x3 < 250 && x3 > 5)
+							{
+								time2 = precision(timestamp + (double(n * 3) + 2) * 1 / 720000);
+								if (time1 != time2)
+								{
+									if (count == 0)
+									{
+										number.push_back(1);
+										count = 1;
+										time1 = time2;
+									}
+									else
+									{
+										number.push_back(count);
+										count = 1;
+										time1 = time2;
+									}
+								}
+								else
+								{
+									++count;
+								}
+							}
+						}
+					}
+				}
+				else
+				{
+					throw"lvxæ–‡ä»¶è¯»å–DataTypeå‡ºé”™ï¼";
+				}
+			}
+			if (cur_offset_ != frame_header.next_offset)
+			{
+				throw"lvxæ–‡ä»¶è¯»å–PointDataå‡ºé”™ï¼";
+			}
+
+		} while (cur_offset_ != file_size);
+		number.push_back(count);
+		count = 0;
+		return number;
+	}
+
+	void lvxReader(string filename, list<Matrix<double, 6, Dynamic >>& lidar_final)
+	{
+		vector<long long int> number = prelvx(filename);
+		Matrix<double, 6, Dynamic> temp;
+		for (long long int i = 0; i < number.size(); i++)
+		{
+			temp.resize(6, number[i]);
+			lidar_final.push_back(temp);
+		}
+		size_t file_size;
+		try
+		{
+			file_size = getFileSize_C(filename.data());
+		}
+		catch (const char* c)
+		{
+			throw c;
+		}
+		vector<LvxDeviceInfo> device_info_vec_;
+		unique_ptr<char[]> read_buffer(new char[READ_BUFFER_LEN]);
+		fstream fp;
+		fp.open(filename, ios::in | ios::binary);
+		if (!fp.is_open())
+		{
+			throw"æ–‡ä»¶æ‰“å¼€å¤±è´¥ï¼";
+		}
+
+		uint64_t cur_offset_ = 0;
+		LvxFilePublicHeader lvx_file_public_header_;
+		LvxFilePrivateHeader lvx_file_private_header_;
+		int header_size = sizeof(LvxFilePublicHeader) + sizeof(LvxFilePrivateHeader);
+		fp.read((char*)read_buffer.get(), header_size);
+		memcpy(&lvx_file_public_header_, read_buffer.get() + cur_offset_, sizeof(LvxFilePublicHeader));
+		cur_offset_ += sizeof(LvxFilePublicHeader);
+		if (lvx_file_public_header_.magic_code != MAGIC_CODE)
+		{
+			throw"lvxæ–‡ä»¶æ ¡éªŒç é”™è¯¯ï¼";
 		}
 
 		memcpy(&lvx_file_private_header_, read_buffer.get() + cur_offset_, sizeof(LvxFilePrivateHeader));
@@ -113,26 +325,179 @@ namespace Aviaissue
 
 		FrameHeader frame_header;
 		LvxBasePackHeader lvx_basepacket_header;
+		long long int tt = 0;
+		list<Matrix<double, 6, Dynamic>>::iterator id = lidar_final.begin();
 		Point data;
 		do
 		{
 			fp.read((char*)read_buffer.get(), sizeof(FrameHeader));
 			memcpy(&frame_header, read_buffer.get(), sizeof(FrameHeader));
+			if (frame_header.current_offset == 0)
+			{
+				/*
+				cur_offset_ += sizeof(FrameHeader);
+				fp.read((char*)read_buffer.get(), sizeof(LvxBasePackHeader));
+				memcpy(&lvx_basepacket_header, read_buffer.get(), sizeof(LvxBasePackHeader));
+				cur_offset_ += sizeof(LvxBasePackHeader);
+				uint32_t points_byte_size = sizeof(Point);
+				for (int n = 0; n < TRIPLE_POINT_NUM; n++)
+				{
+					fp.read((char*)read_buffer.get(), points_byte_size);
+					memcpy(&data, read_buffer.get(), points_byte_size);
+					cur_offset_ += points_byte_size;
+				}
+				continue;
+				*/
+				break;
+			}
 			if (cur_offset_ != frame_header.current_offset)
 			{
-				throw"lvxÎÄ¼ş¶ÁÈ¡FrameHeader³ö´í£¡";
+				throw"lvxæ–‡ä»¶è¯»å–FrameHeaderå‡ºé”™ï¼";
 			}
 			cur_offset_ += sizeof(FrameHeader);
-
+			
 			while (cur_offset_ < frame_header.next_offset)
 			{
 				fp.read((char*)read_buffer.get(), sizeof(LvxBasePackHeader));
 				memcpy(&lvx_basepacket_header, read_buffer.get(), sizeof(LvxBasePackHeader));
 				cur_offset_ += sizeof(LvxBasePackHeader);
 
-				double timestamp = timeconver(lvx_basepacket_header.timestamp);
+				if (lvx_basepacket_header.timestamp_type != 3 || lvx_basepacket_header.error_code == 0)
+				{
+					uint32_t points_byte_size = sizeof(Point);
+					for (int n = 0; n < TRIPLE_POINT_NUM; n++)
+					{
+						fp.read((char*)read_buffer.get(), points_byte_size);
+						memcpy(&data, read_buffer.get(), points_byte_size);
+						cur_offset_ += points_byte_size;
+					}
+					continue;
+				}
+				double timestamp = timeconver(lvx_basepacket_header.timestamp, lvx_basepacket_header.timestamp_us);
 
-				if (lvx_basepacket_header.data_type == 0)
+				if (lvx_basepacket_header.data_type == 7)
+				{
+
+					uint32_t points_byte_size = sizeof(Point);
+					
+					for (int n = 0; n < TRIPLE_POINT_NUM; n++)
+					{
+						fp.read((char*)read_buffer.get(), points_byte_size);
+						memcpy(&data, read_buffer.get(), points_byte_size);
+						cur_offset_ += points_byte_size;
+						int f1_echo = ((data.f1 & 0x30) >> 4);
+						int f1_intensity = ((data.f1 & 0x0c) >> 2);
+						int f1_position = (data.f1 & 0x03);
+						int f2_echo = ((data.f2 & 0x30) >> 4);
+						int f2_intensity = ((data.f2 & 0x0c) >> 2);
+						int f2_position = (data.f2 & 0x03);
+						int f3_echo = ((data.f3 & 0x30) >> 4);
+						int f3_intensity = ((data.f3 & 0x0c) >> 2);
+						int f3_position = (data.f3 & 0x03);
+						double x1, y1, z1, x2, y2, z2, x3, y3, z3;
+						if (f1_echo != 0 && f1_intensity == 0 && f1_position == 0)
+						{
+						
+							x1 = precision((double(data.x1) / 1000));
+							y1 = precision((double(data.y1) / 1000));
+							z1 = precision((double(data.z1) / 1000));
+							if ((x1 != 0 || y1 != 0 || z1 != 0) && x1 < 250 && x1 > 5)
+							{
+								if (tt <= (*id).cols() - 1)
+								{
+									(*id)(0, tt) = precision(timestamp + (double(n * 3) + 0) * 1 / 720000);
+									(*id)(1, tt) = x1;
+									(*id)(2, tt) = y1;
+									(*id)(3, tt) = z1;
+									(*id)(4, tt) = double(int(data.r1));
+									(*id)(5, tt) = f1_echo;
+									tt++;
+								}
+								else
+								{
+									id++;
+									tt = 0;
+									(*id)(0, tt) = precision(timestamp + (double(n * 3) + 0) * 1 / 720000);
+									(*id)(1, tt) = x1;
+									(*id)(2, tt) = y1;
+									(*id)(3, tt) = z1;
+									(*id)(4, tt) = double(int(data.r1));
+									(*id)(5, tt) = f1_echo;
+									tt++;
+								}
+							}
+						}
+						if (f2_echo != 0 && f2_intensity == 0 && f2_position == 0)
+						{
+						
+							x2 = precision((double(data.x2) / 1000));
+							y2 = precision((double(data.y2) / 1000));
+							z2 = precision((double(data.z2) / 1000));
+							if ((x2 != 0 || y2 != 0 || z2 != 0) && x2 < 250 && x2 > 5)
+							{
+								if (tt <= (*id).cols() - 1)
+								{
+									(*id)(0, tt) = precision(timestamp + (double(n * 3) + 1) * 1 / 720000);
+									(*id)(1, tt) = x2;
+									(*id)(2, tt) = y2;
+									(*id)(3, tt) = z2;
+									(*id)(4, tt) = double(int(data.r2));
+									(*id)(5, tt) = f2_echo;
+									tt++;
+								}
+								else
+								{
+									id++;
+									tt = 0;
+									(*id)(0, tt) = precision(timestamp + (double(n * 3) + 1) * 1 / 720000);
+									(*id)(1, tt) = x2;
+									(*id)(2, tt) = y2;
+									(*id)(3, tt) = z2;
+									(*id)(4, tt) = double(int(data.r2));
+									(*id)(5, tt) = f2_echo;
+									tt++;
+								}
+							}
+						}
+						if (f3_echo != 0 && f3_intensity == 0 && f3_position == 0)
+						{
+						
+							x3 = precision((double(data.x3) / 1000));
+							y3 = precision((double(data.y3) / 1000));
+							z3 = precision((double(data.z3) / 1000));
+							if ((x3 != 0 || y3 != 0 || z3 != 0) && x3 < 250 && x3 > 5)
+							{
+								if (tt <= (*id).cols() - 1)
+								{
+									(*id)(0, tt) = precision(timestamp + (double(n * 3) + 2) * 1 / 720000);
+									(*id)(1, tt) = x3;
+									(*id)(2, tt) = y3;
+									(*id)(3, tt) = z3;
+									(*id)(4, tt) = double(int(data.r3));
+									(*id)(5, tt) = f3_echo;
+									tt++;
+								}
+								else
+								{
+									id++;
+									tt = 0;
+									(*id)(0, tt) = precision(timestamp + (double(n * 3) + 2) * 1 / 720000);
+									(*id)(1, tt) = x3;
+									(*id)(2, tt) = y3;
+									(*id)(3, tt) = z3;
+									(*id)(4, tt) = double(int(data.r3));
+									(*id)(5, tt) = f3_echo;
+									tt++;
+								}
+							}
+						}
+					}
+				}
+				else if (lvx_basepacket_header.data_type == 8)
+				{
+
+				}
+				else if (lvx_basepacket_header.data_type == 0)
 				{
 
 				}
@@ -160,91 +525,16 @@ namespace Aviaissue
 				{
 
 				}
-				else if (lvx_basepacket_header.data_type == 7)
-				{
-
-					uint32_t points_byte_size = sizeof(Point);
-					for (int n = 0; n < TRIPLE_POINT_NUM; n++)
-					{
-						fp.read((char*)read_buffer.get(), points_byte_size);
-						memcpy(&data, read_buffer.get(), points_byte_size);
-						cur_offset_ += points_byte_size;
-						MatrixXd temp;
-						int f1_echo = ((data.f1 >> 4) & 3);
-						int f1_intensity = ((data.f1 >> 2) & 3);
-						int f1_position = (data.f1 & 3);
-						int f2_echo = ((data.f2 >> 4) & 3);
-						int f2_intensity = ((data.f2 >> 2) & 3);
-						int f2_position = (data.f2 & 3);
-						int f3_echo = ((data.f3 >> 4) & 3);
-						int f3_intensity = ((data.f3 >> 2) & 3);
-						int f3_position = (data.f3 & 3);
-						double x1, y1, z1, x2, y2, z2, x3, y3, z3;
-						if (f1_echo != 0 && f1_intensity == 0 && f1_position == 0)
-						{
-							temp.resize(6, 1);
-							x1 = precision((double(data.x1) / 1000));
-							y1 = precision((double(data.y1) / 1000));
-							z1 = precision((double(data.z1) / 1000));
-							temp(0, 0) = precision((timestamp + double(n * 3) / 1000000));
-							temp(1, 0) = x1;
-							temp(2, 0) = y1;
-							temp(3, 0) = z1;
-							temp(4, 0) = double(int(data.r1));
-							temp(5, 0) = f1_echo;
-							points.push_back(temp);
-						}
-						if (f2_echo != 0 && f2_intensity == 0 && f2_position == 0)
-						{
-							temp.resize(6, 1);
-							x2 = precision((double(data.x2) / 1000));
-							y2 = precision((double(data.y2) / 1000));
-							z2 = precision((double(data.z2) / 1000));
-							temp(0, 0) = precision((timestamp + double((n * 3) + 1) / 1000000));
-							temp(1, 0) = x2;
-							temp(2, 0) = y2;
-							temp(3, 0) = z2;
-							temp(4, 0) = double(int(data.r2));
-							temp(5, 0) = f2_echo;
-							points.push_back(temp);
-						}
-						if (f3_echo != 0 && f3_intensity == 0 && f3_position == 0)
-						{
-							temp.resize(6, 1);
-							x3 = precision((double(data.x3) / 1000));
-							y3 = precision((double(data.y3) / 1000));
-							z3 = precision((double(data.z3) / 1000));
-							temp(0, 0) = precision((timestamp + double((n * 3) + 2) / 1000000));
-							temp(1, 0) = x3;
-							temp(2, 0) = y3;
-							temp(3, 0) = z3;
-							temp(4, 0) = double(int(data.r3));
-							temp(5, 0) = f3_echo;
-							points.push_back(temp);
-						}
-					}
-				}
-				else if (lvx_basepacket_header.data_type == 8)
-				{
-
-				}
 				else
 				{
-					throw"lvxÎÄ¼ş¶ÁÈ¡DataType³ö´í£¡";
+					throw"lvxæ–‡ä»¶è¯»å–DataTypeå‡ºé”™ï¼";
 				}
 			}
 			if (cur_offset_ != frame_header.next_offset)
 			{
-				throw"lvxÎÄ¼ş¶ÁÈ¡PointData³ö´í£¡";
+				throw"lvxæ–‡ä»¶è¯»å–PointDataå‡ºé”™ï¼";
 			}
 
 		} while (cur_offset_ != file_size);
-		long long int i = 0;
-		for (; i < points.size(); i += 1)
-		{
-			result.conservativeResize(6, (i * 1) + 1);
-			result.block(0, i, 6, 1) = points[i];
-		}
-		return result;
 	}
 }

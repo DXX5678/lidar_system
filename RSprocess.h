@@ -27,7 +27,7 @@ namespace Lidarissue {
 		RS RS1;
 	public:
 		RSManager(int dual_mode1 = 0, int lidar_type1 = 0);
-		void lidar_manage(list<vector<string>> datalist, list<Matrix<double, 6, Dynamic >>& lidar_final);
+		void lidar_manage(list<vector<string>> datalist, list<Matrix<double, 7, Dynamic >>& lidar_final);
 		MatrixXd calc_timing_offsets();
 		~RSManager();
 	};

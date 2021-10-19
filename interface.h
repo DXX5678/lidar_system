@@ -25,6 +25,7 @@ namespace Interface
 	/// 点云文件类型  0-las  1-pcd  2-ply
 	/// 雷达类型  0-RS16  1-RS32  2-Avia
 	/// 雷达工作模式  0-单回波  1-双回波  (Avia默认一种工作模式0-三回波)
+	/// 是否生成数据.txt文件  1-是  0-否  (bool类型)
 
 	//输入文件参数设置
 	typedef struct file_input
@@ -58,24 +59,29 @@ namespace Interface
 		double gamma;
 	}coordinate_parameter;
 
-	void testfuc();
 	/// <summary>
 	/// 函数一：不去除拐点 不分航带生成点云文件
-	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数
+	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数 是否生成txt文件
 	/// </summary>
-	void process_n_n(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num);
+	void process_n_n(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num, bool choice);
 
 	/// <summary>
 	/// 函数二：去除拐点 不分航带生成点云文件
-	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数
+	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数 是否生成txt文件
 	/// </summary>
-	void process_y_n(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num);
+	void process_y_n(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num, bool choice);
 
 	/// <summary>
 	/// 函数三：去除拐点 分航带生成点云文件
-	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数
+	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数 是否生成txt文件
 	/// </summary>
-	void process_y_y(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num);
+	void process_y_y(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num, bool choice);
+
+	/// <summary>
+	/// 函数四：分航带生成点云文件
+	/// 参数：对象指针 文本函数指针 进度条函数指针 输入文件参数设置 输出文件参数设置 雷达参数设置 坐标转换参数设置 线程个数 是否生成txt文件
+	/// </summary>
+	void process_y_y_e(mythread*, void(mythread::* settext)(void*, char[100]), void(mythread::* setvalue)(void*, int), file_input, file_output, lidar_parameter, coordinate_parameter, int num, bool choice);
 }
 
 /*

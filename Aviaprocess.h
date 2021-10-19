@@ -2,7 +2,8 @@
 #define _AVIA_H
 #endif
 #pragma once
-
+#include <vector>
+#include <list>
 #include <Eigen/Dense>
 
 using namespace Eigen;
@@ -59,8 +60,10 @@ namespace Aviaissue
 		uint32_t error_code;
 		uint8_t timestamp_type;
 		uint8_t data_type;
-		uint8_t timestamp[8];
+		uint8_t timestamp[4];
+		uint32_t timestamp_us;
 	} LvxBasePackHeader;
+
 
 	//lvx文件数据信息
 	typedef struct {
@@ -90,8 +93,11 @@ namespace Aviaissue
 	double precision(double x, int y);
 
 	//时间戳解析操作
-	double timeconver(uint8_t timestamp[8]);
+	double timeconver(uint8_t timestamp[4], uint32_t timestamp_us);
+
+	//预分块函数
+	vector <long long int> prelvx(string filename);
 
 	//解析lvx文件函数，返回lidar数据矩阵
-	MatrixXd lvxReader(string filename);
+	void lvxReader(string filename, list<Matrix<double, 6, Dynamic >>& lidar_final);
 }

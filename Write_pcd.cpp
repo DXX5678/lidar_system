@@ -7,21 +7,28 @@ using namespace Eigen;
 
 namespace Pcd 
 {
-	void writePcd_m(string file, MatrixXd final)
+	void writePcd_l(string file, list<Matrix<double, 7, Dynamic >> final)
 	{
-
+		list<Matrix<double, 7, Dynamic >>::iterator idk = final.begin();
+		list<Matrix<double, 7, Dynamic >>::iterator idj = final.end();
 		long long int count = 0;
-		count = final.cols();
+		for (list<Matrix<double, 7, Dynamic >>::iterator id = idk; id != idj; id++)
+		{
+			count += (*id).cols();
+		}
 		string filename = file;
 		pcl::PointCloud<pcl::PointXYZ> cloud;
 		cloud.clear();
-		for (int i = 0; i < final.cols(); i++)
+		for (list<Matrix<double, 7, Dynamic >>::iterator id = idk; id != idj; id++)
 		{
-			double x = final(1, i);
-			double y = final(2, i);
-			double z = final(3, i);
-			pcl::PointXYZ thePt(x, y, z);
-			cloud.push_back(thePt);
+			for (int i = 0; i < (*id).cols(); i++)
+			{
+				double x = (*id)(1, i);
+				double y = (*id)(2, i);
+				double z = (*id)(3, i);
+				pcl::PointXYZ thePt(x, y, z);
+				cloud.push_back(thePt);
+			}
 		}
 		cloud.width = count;
 		cloud.height = 1;
@@ -31,7 +38,7 @@ namespace Pcd
 		cloud.clear();
 	}
 
-	void writePcd_l(string file, list<Matrix<double, 6, Dynamic >> final)
+	void AwritePcd_l(string file, list<Matrix<double, 6, Dynamic >> final)
 	{
 		list<Matrix<double, 6, Dynamic >>::iterator idk = final.begin();
 		list<Matrix<double, 6, Dynamic >>::iterator idj = final.end();
